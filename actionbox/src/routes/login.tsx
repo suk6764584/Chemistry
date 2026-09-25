@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { Logo } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { useSession } from "@/lib/use-session";
+import { useDraftSnapshot } from "@/lib/items/drafts";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
 function Login() {
-  const { user, isPending } = useCurrentUserState();
+  const { user, isPending } = useSession();
+  const hasDraft = Boolean(useDraftSnapshot());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"in" | "up">("in");
@@ -23,17 +26,21 @@ function Login() {
 
   const submitEmail = async () => {
     setError(null);
+    if (!email.trim() || !password) {
+      setError("이메일과 비밀번호를 입력해 주세요.");
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "up") {
         const { error: err } = await authClient.signUp.email({
-          email,
+          email: email.trim(),
           password,
           name: email.split("@")[0] || "사용자",
         });
         if (err) throw new Error(err.message || "가입에 실패했습니다.");
       } else {
-        const { error: err } = await authClient.signIn.email({ email, password });
+        const { error: err } = await authClient.signIn.email({ email: email.trim(), password });
         if (err) throw new Error(err.message || "로그인에 실패했습니다.");
       }
       window.location.href = "/";
@@ -44,31 +51,40 @@ function Login() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center bg-bg px-6 py-10">
-      <Link to="/" className="mb-10 flex items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-sm bg-accent text-accent-fg">
-          <svg viewBox="0 0 24 24" className="size-4" fill="none" aria-hidden>
-            <rect x="4" y="6" width="16" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
-            <path
-              d="M8 12h8M13 9.5 16 12l-3 2.5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </span>
-        <span className="font-semibold">ActionBox</span>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-bg px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-10">
+      <Link to="/" className="flex h-14 items-center gap-2 self-start">
+        <Logo className="size-7" />
+        <span className="text-[17px] font-extrabold tracking-tight">ActionBox</span>
       </Link>
-      <h1 className="text-2xl font-semibold tracking-tight">저장한 것을 다시 꺼내 씁니다</h1>
-      <p className="mt-2 text-sm text-muted">로그인하면 항목은 이 계정에만 저장됩니다.</p>
 
-      <div className="mt-8 space-y-3">
+      <div className="mt-8">
+        <h1 className="text-[26px] leading-tight font-extrabold tracking-tight">
+          저장한 것을
+          <br />
+          제때 꺼내 쓰세요
+        </h1>
+        <p className="mt-2 text-[15px] text-muted">로그인하면 넣은 항목이 이 계정에만 저장돼요.</p>
+      </div>
+
+      {hasDraft ? (
+        <p className="mt-5 rounded-lg bg-primary-soft px-4 py-3 text-[14px] font-medium text-primary">
+          입력하신 내용은 이 기기에 보관해 두었어요. 로그인하면 홈에서 바로 저장할 수 있어요.
+        </p>
+      ) : null}
+
+      <form
+        className="mt-7 space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void submitEmail();
+        }}
+      >
         <div className="space-y-1.5">
           <Label htmlFor="email">이메일</Label>
           <Input
             id="email"
             type="email"
+            inputMode="email"
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -82,39 +98,45 @@ function Login() {
             autoComplete={mode === "up" ? "new-password" : "current-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void submitEmail();
-            }}
           />
+          {mode === "up" ? <p className="text-[13px] text-subtle">8자 이상으로 정해 주세요.</p> : null}
         </div>
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-        <Button className="w-full" disabled={busy} onClick={() => void submitEmail()}>
-          {busy ? "처리 중…" : mode === "up" ? "가입하고 시작" : "이메일로 로그인"}
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
+          {busy ? "처리 중…" : mode === "up" ? "가입하고 시작하기" : "로그인"}
         </Button>
         <button
           type="button"
-          className="h-11 w-full text-sm text-muted"
+          className="h-11 w-full text-[14px] font-semibold text-muted"
           onClick={() => {
             setMode(mode === "up" ? "in" : "up");
             setError(null);
           }}
         >
-          {mode === "up" ? "이미 계정이 있나요? 로그인" : "처음인가요? 이메일로 가입"}
+          {mode === "up" ? "이미 계정이 있어요 · 로그인" : "처음이에요 · 이메일로 가입"}
         </button>
-      </div>
+      </form>
 
       {authEnabled ? (
-        <div className="mt-8 space-y-3">
-          <p className="text-center text-xs text-subtle">또는</p>
+        <div className="mt-6 space-y-2.5">
+          <div className="flex items-center gap-3 text-[13px] text-subtle">
+            <span className="h-px flex-1 bg-line" />
+            또는
+            <span className="h-px flex-1 bg-line" />
+          </div>
           {GROK_PROVIDERS.map((p) => (
             <Button
               key={p.providerId}
-              type="button"
               variant="outline"
+              size="lg"
               className="w-full"
-              onClick={() => signIn(p.providerId, { callbackURL: "/" })}
+              onClick={() =>
+                void signIn(p.providerId, { callbackURL: "/" }).catch((e: unknown) =>
+                  setError(e instanceof Error ? e.message : "로그인에 실패했습니다."),
+                )
+              }
             >
-              {p.label}로 계속
+              {p.label}로 계속하기
             </Button>
           ))}
         </div>

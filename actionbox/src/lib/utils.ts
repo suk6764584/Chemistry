@@ -42,6 +42,36 @@ export function formatShortDate(dateISO: string | null | undefined): string | nu
   return `${m}월 ${d}일`;
 }
 
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+/** "10월 18일 (토)" */
+export function formatDateWithWeekday(dateISO: string | null | undefined): string | null {
+  const short = formatShortDate(dateISO);
+  if (!short || !dateISO) return null;
+  const [y, m, d] = dateISO.split("-").map(Number);
+  return `${short} (${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+}
+
+/** "9월 25일 오후 6:30" in the viewer's time zone. */
+export function formatTimestamp(iso: string): string {
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return "";
+  const h = dt.getHours();
+  const period = h < 12 ? "오전" : "오후";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${dt.getMonth() + 1}월 ${dt.getDate()}일 ${period} ${h12}:${String(dt.getMinutes()).padStart(2, "0")}`;
+}
+
+/** RFC 4122 v4 id. `crypto.randomUUID` only exists in secure contexts, so fall back to getRandomValues. */
+export function uuid(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 export function formatDday(dateISO: string | null | undefined): string | null {
   const n = daysUntil(dateISO);
   if (n === null) return null;

@@ -92,40 +92,65 @@ export function UserButton() {
   // Sign-out can take a moment (and can fail when deployed), so the control
   // shows it is working and cannot be fired twice.
   const [signingOut, setSigningOut] = useState(false);
+  const [open, setOpen] = useState(false);
   const gateSession = useSyncExternalStore(
     subscribeToNothing,
     hasGateSessionMarker,
     noGateSessionOnServer,
   );
   if (!user) return null;
-  const label = user.displayName ?? user.primaryEmail ?? "Account";
+  const label = user.displayName ?? user.primaryEmail ?? "계정";
+  const canSignOut = authEnabled && !gateSession;
   return (
-    <div className="flex items-center gap-2">
-      {user.profileImageUrl ? (
-        <img
-          src={user.profileImageUrl}
-          alt=""
-          className="h-8 w-8 rounded-full object-cover"
-        />
-      ) : (
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-black/10 text-sm font-medium dark:bg-white/20">
-          {label.charAt(0).toUpperCase()}
-        </span>
-      )}
-      <span className="text-sm font-medium">{label}</span>
-      {authEnabled && !gateSession && (
-        <button
-          type="button"
-          disabled={signingOut}
-          onClick={() => {
-            setSigningOut(true);
-            // Success navigates away; on failure re-enable so it can be retried.
-            void signOut().catch(() => setSigningOut(false));
-          }}
-          className="cursor-pointer text-sm underline-offset-4 opacity-70 hover:underline disabled:cursor-wait disabled:no-underline"
-        >
-          {signingOut ? "Signing out…" : "Sign out"}
-        </button>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="계정 메뉴"
+        className="grid size-10 place-items-center overflow-hidden rounded-full bg-surface text-sm font-bold shadow-[var(--shadow-card)]"
+      >
+        {user.profileImageUrl ? (
+          <img src={user.profileImageUrl} alt="" className="size-10 object-cover" />
+        ) : (
+          label.charAt(0).toUpperCase()
+        )}
+      </button>
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => setOpen(false)}
+          />
+          <div
+            role="menu"
+            className="absolute top-12 right-0 z-50 w-60 rounded-lg bg-surface p-1.5 shadow-[var(--shadow-float)]"
+          >
+            <p className="truncate px-3 pt-2 pb-1 text-[15px] font-semibold">{label}</p>
+            {user.primaryEmail && user.primaryEmail !== label ? (
+              <p className="truncate px-3 pb-2 text-[13px] text-subtle">{user.primaryEmail}</p>
+            ) : null}
+            {canSignOut && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={signingOut}
+                onClick={() => {
+                  setSigningOut(true);
+                  // Success navigates away; on failure re-enable so it can be retried.
+                  void signOut().catch(() => setSigningOut(false));
+                }}
+                className="h-11 w-full rounded-md px-3 text-left text-[15px] font-semibold text-danger active:bg-surface-2 disabled:opacity-50"
+              >
+                {signingOut ? "로그아웃 중…" : "로그아웃"}
+              </button>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

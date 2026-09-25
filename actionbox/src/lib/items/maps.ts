@@ -10,9 +10,3 @@ export function naverMapUrl(query: string): string {
 export function googleMapUrl(query: string): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
-
-export function openMap(location?: string | null, address?: string | null) {
-  const q = mapSearchQuery(location, address);
-  if (!q) return;
-  window.open(naverMapUrl(q), "_blank", "noopener,noreferrer");
-}

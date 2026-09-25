@@ -3,21 +3,28 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import {
   analyzeWithAi,
-  defaultReminder,
+  asDate,
+  asHttpUrl,
+  asTime,
+  clampSummary,
   fetchPageMeta,
+  reviewNote,
   sanitizeHttpUrl,
+  type PageMeta,
 } from "./ai";
+import { defaultReminder } from "./reminder";
 import { reminderForSample, sampleItems } from "./samples";
 import {
+  isActionCode,
   isCategory,
   isStatus,
+  SAMPLE_NOTE,
+  type ActionCode,
   type AnalysisStatus,
-  type Category,
   type ConfidenceMap,
   type CreateItemInput,
   type Item,
   type ItemPatch,
-  type ItemStatus,
   type OriginalType,
 } from "./types";
 
@@ -27,11 +34,15 @@ const LIST_COLUMNS = `
   extracted_time,
   expiration_date::text as expiration_date,
   location, address, amount, phone, reservation_number, coupon_brand, coupon_product,
-  action_type, recommended_actions, confidence, analysis_status, analysis_error, status,
+  action_type, recommended_actions, confidence, analysis_status, analysis_error, analysis_note, status,
   reminder_date::text as reminder_date, reminder_enabled, do_today,
   created_at, updated_at,
   (image_data is not null) as has_image
 `;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_IMAGE_BASE64 = 1_900_000;
 
 type ItemRow = Record<string, unknown>;
 
@@ -43,14 +54,7 @@ function asIso(value: unknown): string {
 
 function asDateStr(value: unknown): string | null {
   if (value == null) return null;
-  if (value instanceof Date) {
-    const y = value.getFullYear();
-    const m = String(value.getMonth() + 1).padStart(2, "0");
-    const d = String(value.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-  const s = String(value);
-  return s.slice(0, 10) || null;
+  return String(value).slice(0, 10) || null;
 }
 
 function asBool(value: unknown): boolean {
@@ -69,35 +73,42 @@ function parseJson<T>(value: unknown, fallback: T): T {
   return value as T;
 }
 
+function str(value: unknown): string | null {
+  return value == null ? null : String(value);
+}
+
 function mapItem(row: ItemRow): Item {
   const categoryRaw = String(row.category ?? "other");
   const statusRaw = String(row.status ?? "inbox");
   const analysisRaw = String(row.analysis_status ?? "pending");
+  const actionType = str(row.action_type);
   return {
     id: String(row.id),
     original_type: String(row.original_type) as OriginalType,
-    original_content: row.original_content == null ? null : String(row.original_content),
-    source_url: row.source_url == null ? null : String(row.source_url),
-    title: row.title == null ? null : String(row.title),
-    summary: row.summary == null ? null : String(row.summary),
+    original_content: str(row.original_content),
+    // Only ever hand http(s) links to the UI (older rows could hold anything).
+    source_url: /^https?:\/\//i.test(String(row.source_url ?? "")) ? String(row.source_url) : null,
+    title: str(row.title),
+    summary: str(row.summary),
     category: isCategory(categoryRaw) ? categoryRaw : "other",
     extracted_date: asDateStr(row.extracted_date),
-    extracted_time: row.extracted_time == null ? null : String(row.extracted_time),
+    extracted_time: str(row.extracted_time),
     expiration_date: asDateStr(row.expiration_date),
-    location: row.location == null ? null : String(row.location),
-    address: row.address == null ? null : String(row.address),
-    amount: row.amount == null ? null : String(row.amount),
-    phone: row.phone == null ? null : String(row.phone),
-    reservation_number: row.reservation_number == null ? null : String(row.reservation_number),
-    coupon_brand: row.coupon_brand == null ? null : String(row.coupon_brand),
-    coupon_product: row.coupon_product == null ? null : String(row.coupon_product),
-    action_type: row.action_type == null ? null : String(row.action_type),
-    recommended_actions: parseJson<string[]>(row.recommended_actions, []),
+    location: str(row.location),
+    address: str(row.address),
+    amount: str(row.amount),
+    phone: str(row.phone),
+    reservation_number: str(row.reservation_number),
+    coupon_brand: str(row.coupon_brand),
+    coupon_product: str(row.coupon_product),
+    action_type: actionType && isActionCode(actionType) ? actionType : null,
+    recommended_actions: parseJson<unknown[]>(row.recommended_actions, []).filter(
+      (a): a is ActionCode => typeof a === "string" && isActionCode(a),
+    ),
     confidence: parseJson<ConfidenceMap>(row.confidence, {}),
-    analysis_status: (["pending", "done", "failed"].includes(analysisRaw)
-      ? analysisRaw
-      : "pending") as AnalysisStatus,
-    analysis_error: row.analysis_error == null ? null : String(row.analysis_error),
+    analysis_status: (["pending", "done", "failed"].includes(analysisRaw) ? analysisRaw : "pending") as AnalysisStatus,
+    analysis_error: str(row.analysis_error),
+    analysis_note: str(row.analysis_note),
     status: isStatus(statusRaw) ? statusRaw : "inbox",
     reminder_date: asDateStr(row.reminder_date),
     reminder_enabled: asBool(row.reminder_enabled),
@@ -118,7 +129,30 @@ async function getItemRow(userId: string, id: string): Promise<Item | null> {
   return row ? mapItem(row) : null;
 }
 
-function fallbackTitle(input: CreateItemInput): string {
+async function listRows(userId: string): Promise<Item[]> {
+  const sql = await getSql();
+  const rows = await sql.query<ItemRow>(
+    `select ${LIST_COLUMNS} from items where user_id = $1 order by created_at desc`,
+    [userId],
+  );
+  return rows.map(mapItem);
+}
+
+/** The caller's local date (YYYY-MM-DD), or today in Korea when missing/invalid. */
+function todayOr(value: unknown): string {
+  return (
+    asDate(value) ??
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date())
+  );
+}
+
+function cleanText(value: unknown, max: number): string | null {
+  if (value == null) return null;
+  const t = String(value).trim();
+  return t ? t.slice(0, max) : null;
+}
+
+function fallbackTitle(input: { original_type: OriginalType; original_content: string | null; source_url: string | null }): string {
   if (input.source_url) {
     try {
       return new URL(input.source_url).hostname.replace(/^www\./, "");
@@ -130,31 +164,23 @@ function fallbackTitle(input: CreateItemInput): string {
     const line = input.original_content.trim().split("\n")[0] ?? "";
     return line.slice(0, 40) || "제목 없음";
   }
-  if (input.original_type === "screenshot" || input.original_type === "image") return "이미지";
+  if (input.original_type === "screenshot") return "스크린샷";
+  if (input.original_type === "image") return "사진";
   return "새 항목";
 }
 
 export const listItems = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
-    const sql = await getSql();
-    const rows = await sql.query<ItemRow>(
-      `select ${LIST_COLUMNS} from items where user_id = $1 order by created_at desc`,
-      [context.userId],
-    );
-    return rows.map(mapItem);
-  });
+  .handler(async ({ context }) => listRows(context.userId));
 
 export const getItem = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((id: string) => id)
-  .handler(async ({ context, data: id }) => {
-    return getItemRow(context.userId, id);
-  });
+  .validator((id: string) => String(id))
+  .handler(async ({ context, data: id }) => getItemRow(context.userId, id));
 
 export const getItemImage = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
-  .validator((id: string) => id)
+  .validator((id: string) => String(id))
   .handler(async ({ context, data: id }) => {
     const sql = await getSql();
     const rows = await sql.query<{ image_data: string | null; image_mime: string | null }>(
@@ -166,204 +192,246 @@ export const getItemImage = createServerFn({ method: "GET" })
     return { base64: row.image_data, mime: row.image_mime || "image/jpeg" };
   });
 
-async function analyzeAndUpdate(userId: string, item: Item, image?: { base64: string; mime: string } | null) {
-  const sql = await getSql();
-  try {
-    let pageMeta:
-      | { title: string | null; description: string | null; excerpt: string | null; fetched: boolean }
-      | undefined;
-    const url = item.source_url ? sanitizeHttpUrl(item.source_url) : null;
-    if (item.original_type === "url" && url) {
-      pageMeta = await fetchPageMeta(url);
+/**
+ * Step 1 of capture: store the original right away, in the inbox. Analysis is
+ * a separate call so a slow or failed AI request can never lose what the user
+ * saved. The id comes from the client, so a retried save is idempotent.
+ */
+export const createItem = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: CreateItemInput) => input)
+  .handler(async ({ context, data }) => {
+    const id = String(data.id ?? "");
+    if (!UUID_RE.test(id)) throw new Error("잘못된 요청입니다.");
+    const originalType = data.original_type;
+    if (!["image", "screenshot", "url", "text"].includes(originalType)) {
+      throw new Error("지원하지 않는 입력입니다.");
     }
 
-    const imageDataUrl =
-      image?.base64 && image.mime ? `data:${image.mime};base64,${image.base64}` : null;
+    let sourceUrl: string | null = null;
+    if (originalType === "url") {
+      sourceUrl = sanitizeHttpUrl(String(data.source_url || data.original_content || ""));
+      if (!sourceUrl) throw new Error("올바른 링크를 입력해 주세요. (http:// 또는 https://)");
+    }
+    const originalContent = originalType === "url" ? sourceUrl : cleanText(data.original_content, 10_000);
+    if (originalType === "text" && !originalContent) throw new Error("내용을 입력해 주세요.");
 
-    const extracted = await analyzeWithAi({
+    const isImage = originalType === "image" || originalType === "screenshot";
+    if (isImage) {
+      if (typeof data.image_base64 !== "string" || !data.image_base64 || !IMAGE_MIMES.includes(String(data.image_mime))) {
+        throw new Error("이미지를 선택해 주세요.");
+      }
+      if (data.image_base64.length > MAX_IMAGE_BASE64) throw new Error("이미지가 너무 큽니다.");
+    }
+
+    const sql = await getSql();
+    await sql.query(
+      `insert into items (
+        id, user_id, original_type, original_content, image_data, image_mime, source_url,
+        title, category, status, analysis_status
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,'other','inbox','pending')
+      on conflict (id) do nothing`,
+      [
+        id,
+        context.userId,
+        originalType,
+        originalContent,
+        isImage ? data.image_base64 : null,
+        isImage ? data.image_mime : null,
+        sourceUrl,
+        fallbackTitle({ original_type: originalType, original_content: originalContent, source_url: sourceUrl }),
+      ],
+    );
+
+    const created = await getItemRow(context.userId, id);
+    if (!created) throw new Error("항목을 저장하지 못했습니다.");
+    return created;
+  });
+
+async function runAnalysis(userId: string, item: Item, today: string): Promise<void> {
+  const sql = await getSql();
+  let pageMeta: PageMeta | undefined;
+  try {
+    const url = item.source_url ? sanitizeHttpUrl(item.source_url) : null;
+    if (item.original_type === "url" && url) pageMeta = await fetchPageMeta(url);
+
+    let imageDataUrl: string | null = null;
+    if (item.has_image) {
+      const img = await sql.query<{ image_data: string | null; image_mime: string | null }>(
+        `select image_data, image_mime from items where id = $1 and user_id = $2 limit 1`,
+        [item.id, userId],
+      );
+      const row = img[0];
+      if (row?.image_data) imageDataUrl = `data:${row.image_mime || "image/jpeg"};base64,${row.image_data}`;
+    }
+
+    const ex = await analyzeWithAi({
       originalType: item.original_type,
+      today,
       text: item.original_content,
       sourceUrl: url ?? item.source_url,
       pageMeta,
       imageDataUrl,
     });
+    if (!ex) throw new Error("AI_BAD_RESPONSE");
 
+    const pageRead = pageMeta ? pageMeta.fetched : null;
+    const note = reviewNote(ex, pageRead);
     const title =
-      extracted.title ||
+      ex.title ||
       (pageMeta?.fetched ? pageMeta.title : null) ||
       item.title ||
-      fallbackTitle({
-        original_type: item.original_type,
-        original_content: item.original_content,
-        source_url: item.source_url,
-      });
-
-    const reminder = defaultReminder(extracted.category, extracted.date, extracted.expiration_date);
+      fallbackTitle(item);
+    const summary = pageRead === false ? null : ex.summary;
+    const reminder = defaultReminder(ex.category, ex.date, ex.expiration_date);
 
     await sql.query(
       `update items set
-        title = $3,
-        summary = $4,
-        category = $5,
-        extracted_date = $6,
-        extracted_time = $7,
-        expiration_date = $8,
-        location = $9,
-        address = $10,
-        amount = $11,
-        phone = $12,
-        reservation_number = $13,
-        coupon_brand = $14,
-        coupon_product = $15,
-        recommended_actions = $16::jsonb,
-        confidence = $17::jsonb,
-        analysis_status = 'done',
-        analysis_error = null,
-        status = 'active',
-        reminder_date = $18,
-        reminder_enabled = $19,
+        title = $3, summary = $4, category = $5,
+        extracted_date = $6, extracted_time = $7, expiration_date = $8,
+        location = $9, address = $10, amount = $11, phone = $12,
+        reservation_number = $13, coupon_brand = $14, coupon_product = $15,
+        source_url = coalesce(source_url, $16),
+        action_type = $17, recommended_actions = $18::jsonb, confidence = $19::jsonb,
+        analysis_status = 'done', analysis_error = null, analysis_note = $20,
+        status = $21, reminder_date = $22, reminder_enabled = $23,
         updated_at = now()
       where id = $1 and user_id = $2`,
       [
         item.id,
         userId,
         title,
-        extracted.summary,
-        extracted.category,
-        extracted.date,
-        extracted.time,
-        extracted.expiration_date,
-        extracted.location,
-        extracted.address,
-        extracted.amount,
-        extracted.phone,
-        extracted.reservation_number,
-        extracted.coupon_brand,
-        extracted.coupon_product,
-        JSON.stringify(extracted.recommended_actions),
-        JSON.stringify(extracted.confidence),
+        summary,
+        ex.category,
+        ex.date,
+        ex.time,
+        ex.expiration_date,
+        ex.location,
+        ex.address,
+        ex.amount,
+        ex.phone,
+        ex.reservation_number,
+        ex.coupon_brand,
+        ex.coupon_product,
+        ex.url,
+        ex.recommended_actions[0] ?? null,
+        JSON.stringify(ex.recommended_actions),
+        JSON.stringify(ex.confidence),
+        note,
+        note ? "inbox" : "active",
         reminder.reminder_date,
         reminder.reminder_enabled,
       ],
     );
   } catch (err) {
     const code = err instanceof Error ? err.message : "AI_ERROR";
-    let message = "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요.";
-    if (code === "AI_UNAVAILABLE") {
-      message = "지금은 자동 분석을 사용할 수 없습니다. 직접 입력해 주세요.";
-    }
+    // Log only the error code — never the user's content.
+    console.warn(`[items] analysis failed: ${code}`);
+    const message =
+      code === "AI_UNAVAILABLE"
+        ? "지금은 자동 분석을 사용할 수 없어요. 직접 입력해 주세요."
+        : "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요.";
+    // The page's own title/description are facts, not AI output — keep them when we have them.
+    const pageTitle = pageMeta?.fetched ? pageMeta.title : null;
+    const pageSummary = pageMeta?.fetched ? clampSummary(pageMeta.description) : null;
     await sql.query(
       `update items set
-        analysis_status = 'failed',
-        analysis_error = $3,
+        analysis_status = 'failed', analysis_error = $3, analysis_note = null,
+        title = coalesce($4, title), summary = coalesce(summary, $5),
         updated_at = now()
       where id = $1 and user_id = $2`,
-      [item.id, userId, message],
+      [item.id, userId, message, pageTitle, pageSummary],
     );
   }
-  return getItemRow(userId, item.id);
 }
 
-export const createItem = createServerFn({ method: "POST" })
+/** Step 2 of capture (and "다시 분석"): read the original and fill in the fields. */
+export const analyzeItem = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((input: CreateItemInput) => input)
+  .validator((input: { id: string; today?: string }) => ({ id: String(input.id), today: todayOr(input.today) }))
   .handler(async ({ context, data }) => {
-    const originalType = data.original_type;
-    if (!["image", "screenshot", "url", "text"].includes(originalType)) {
-      throw new Error("지원하지 않는 입력입니다.");
-    }
-
-    let sourceUrl = data.source_url?.trim() || null;
-    if (originalType === "url") {
-      const raw = sourceUrl || data.original_content?.trim() || "";
-      const clean = sanitizeHttpUrl(raw);
-      if (!clean) throw new Error("올바른 링크를 입력해 주세요.");
-      sourceUrl = clean;
-    }
-
-    const originalContent =
-      originalType === "url" ? sourceUrl : data.original_content?.trim() || null;
-
-    if (originalType === "text" && !originalContent) {
-      throw new Error("내용을 입력해 주세요.");
-    }
-    if ((originalType === "image" || originalType === "screenshot") && !data.image_base64) {
-      throw new Error("이미지를 선택해 주세요.");
-    }
-    if (data.image_base64 && data.image_base64.length > 1_800_000) {
-      throw new Error("이미지가 너무 큽니다.");
-    }
-
-    const id = crypto.randomUUID();
+    const current = await getItemRow(context.userId, data.id);
+    if (!current) throw new Error("항목을 찾을 수 없습니다.");
     const sql = await getSql();
-    const title = fallbackTitle({
-      original_type: originalType,
-      original_content: originalContent,
-      source_url: sourceUrl,
-    });
-
     await sql.query(
-      `insert into items (
-        id, user_id, original_type, original_content, image_data, image_mime, source_url,
-        title, category, status, analysis_status
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,'other','inbox','pending')`,
-      [
-        id,
-        context.userId,
-        originalType,
-        originalContent,
-        data.image_base64 ?? null,
-        data.image_mime ?? null,
-        sourceUrl,
-        title,
-      ],
+      `update items set analysis_status = 'pending', analysis_error = null, updated_at = now()
+       where id = $1 and user_id = $2`,
+      [data.id, context.userId],
     );
-
-    const created = await getItemRow(context.userId, id);
-    if (!created) throw new Error("항목을 저장하지 못했습니다.");
-
-    const image =
-      data.image_base64 && data.image_mime
-        ? { base64: data.image_base64, mime: data.image_mime }
-        : null;
-    const analyzed = await analyzeAndUpdate(context.userId, created, image);
-    return analyzed ?? created;
+    await runAnalysis(context.userId, current, data.today);
+    const updated = await getItemRow(context.userId, data.id);
+    if (!updated) throw new Error("항목을 찾을 수 없습니다.");
+    return updated;
   });
+
+function patchDate(value: unknown, label: string): string | null {
+  if (value == null || value === "") return null;
+  const d = asDate(value);
+  if (!d) throw new Error(`${label} 형식이 올바르지 않습니다.`);
+  return d;
+}
 
 export const updateItem = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { id: string; patch: ItemPatch }) => input)
   .handler(async ({ context, data }) => {
-    const current = await getItemRow(context.userId, data.id);
+    const current = await getItemRow(context.userId, String(data.id));
     if (!current) throw new Error("항목을 찾을 수 없습니다.");
 
-    const p = data.patch;
-    const title = p.title !== undefined ? p.title : current.title;
-    const summary = p.summary !== undefined ? p.summary : current.summary;
-    const category: Category =
-      p.category !== undefined && isCategory(p.category) ? p.category : current.category;
-    const extracted_date = p.extracted_date !== undefined ? p.extracted_date : current.extracted_date;
-    const extracted_time = p.extracted_time !== undefined ? p.extracted_time : current.extracted_time;
-    const expiration_date = p.expiration_date !== undefined ? p.expiration_date : current.expiration_date;
-    const location = p.location !== undefined ? p.location : current.location;
-    const address = p.address !== undefined ? p.address : current.address;
-    const amount = p.amount !== undefined ? p.amount : current.amount;
-    const phone = p.phone !== undefined ? p.phone : current.phone;
-    const reservation_number =
-      p.reservation_number !== undefined ? p.reservation_number : current.reservation_number;
-    const coupon_brand = p.coupon_brand !== undefined ? p.coupon_brand : current.coupon_brand;
-    const coupon_product = p.coupon_product !== undefined ? p.coupon_product : current.coupon_product;
-    const source_url = p.source_url !== undefined ? p.source_url : current.source_url;
-    const original_content = p.original_content !== undefined ? p.original_content : current.original_content;
-    let status: ItemStatus = p.status !== undefined && isStatus(p.status) ? p.status : current.status;
-    if (status === "inbox" && current.analysis_status === "failed" && title) {
-      status = "active";
+    const p = data.patch ?? {};
+    const pick = <K extends keyof ItemPatch>(key: K, clean: (v: unknown) => Item[K]): Item[K] =>
+      p[key] !== undefined ? clean(p[key]) : current[key];
+
+    const title = pick("title", (v) => cleanText(v, 120));
+    const summary = pick("summary", (v) => clampSummary(cleanText(v, 600)));
+    const category = pick("category", (v) => (typeof v === "string" && isCategory(v) ? v : current.category));
+    const extracted_date = pick("extracted_date", (v) => patchDate(v, "날짜"));
+    const extracted_time = pick("extracted_time", (v) => {
+      if (v == null || v === "") return null;
+      const t = asTime(v);
+      if (!t) throw new Error("시간 형식이 올바르지 않습니다.");
+      return t;
+    });
+    const expiration_date = pick("expiration_date", (v) => patchDate(v, "만료일"));
+    const location = pick("location", (v) => cleanText(v, 80));
+    const address = pick("address", (v) => cleanText(v, 160));
+    const amount = pick("amount", (v) => cleanText(v, 40));
+    const phone = pick("phone", (v) => cleanText(v, 40));
+    const reservation_number = pick("reservation_number", (v) => cleanText(v, 60));
+    const coupon_brand = pick("coupon_brand", (v) => cleanText(v, 60));
+    const coupon_product = pick("coupon_product", (v) => cleanText(v, 80));
+    const source_url = pick("source_url", (v) => {
+      if (v == null || v === "") return null;
+      const u = asHttpUrl(v);
+      if (!u) throw new Error("링크는 http:// 또는 https:// 로 시작해야 합니다.");
+      return u;
+    });
+    const original_content = pick("original_content", (v) => cleanText(v, 10_000));
+    const status = pick("status", (v) => (typeof v === "string" && isStatus(v) ? v : current.status));
+    const do_today = pick("do_today", (v) => v === true);
+    let reminder_date = pick("reminder_date", (v) => patchDate(v, "알림 날짜"));
+    let reminder_enabled = pick("reminder_enabled", (v) => v === true);
+
+    // Keep an automatic reminder in step with the dates it was derived from,
+    // unless the user set the reminder themselves.
+    const reminderTouched = p.reminder_enabled !== undefined || p.reminder_date !== undefined;
+    const basisChanged =
+      category !== current.category ||
+      extracted_date !== current.extracted_date ||
+      expiration_date !== current.expiration_date;
+    if (!reminderTouched && basisChanged) {
+      const oldDefault = defaultReminder(current.category, current.extracted_date, current.expiration_date);
+      const wasAutomatic =
+        (!current.reminder_enabled && !current.reminder_date) ||
+        (current.reminder_enabled === oldDefault.reminder_enabled &&
+          current.reminder_date === oldDefault.reminder_date);
+      if (wasAutomatic) {
+        const next = defaultReminder(category, extracted_date, expiration_date);
+        reminder_date = next.reminder_date;
+        reminder_enabled = next.reminder_enabled;
+      }
     }
-    if (current.status === "inbox" && p.category) status = "active";
-    const reminder_date = p.reminder_date !== undefined ? p.reminder_date : current.reminder_date;
-    const reminder_enabled =
-      p.reminder_enabled !== undefined ? p.reminder_enabled : current.reminder_enabled;
-    const do_today = p.do_today !== undefined ? p.do_today : current.do_today;
+    if (reminder_enabled && !reminder_date) reminder_enabled = false;
 
     const sql = await getSql();
     await sql.query(
@@ -374,10 +442,12 @@ export const updateItem = createServerFn({ method: "POST" })
         reservation_number = $13, coupon_brand = $14, coupon_product = $15,
         source_url = $16, original_content = $17, status = $18,
         reminder_date = $19, reminder_enabled = $20, do_today = $21,
+        analysis_note = case when status = 'inbox' and $18 <> 'inbox' then null else analysis_note end,
+        analysis_error = case when status = 'inbox' and $18 <> 'inbox' then null else analysis_error end,
         updated_at = now()
       where id = $1 and user_id = $2`,
       [
-        data.id,
+        current.id,
         context.userId,
         title,
         summary,
@@ -400,52 +470,48 @@ export const updateItem = createServerFn({ method: "POST" })
         do_today,
       ],
     );
-    const updated = await getItemRow(context.userId, data.id);
+    const updated = await getItemRow(context.userId, current.id);
     if (!updated) throw new Error("항목을 찾을 수 없습니다.");
     return updated;
   });
 
 export const deleteItem = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((id: string) => id)
+  .validator((id: string) => String(id))
   .handler(async ({ context, data: id }) => {
     const sql = await getSql();
     await sql.query(`delete from items where id = $1 and user_id = $2`, [id, context.userId]);
     return { ok: true as const };
   });
 
+/** Adds the six example items, only into an empty account. */
 export const seedSamples = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context }) => {
+  .validator((input: { today?: string }) => ({ today: todayOr(input?.today) }))
+  .handler(async ({ context, data }) => {
     const sql = await getSql();
     const existing = await sql.query<{ n: number }>(
       `select count(*)::int as n from items where user_id = $1`,
       [context.userId],
     );
-    if ((existing[0]?.n ?? 0) > 0) {
-      const rows = await sql.query<ItemRow>(
-        `select ${LIST_COLUMNS} from items where user_id = $1 order by created_at desc`,
-        [context.userId],
-      );
-      return rows.map(mapItem);
-    }
+    if ((existing[0]?.n ?? 0) > 0) return listRows(context.userId);
 
-    for (const sample of sampleItems()) {
-      const id = crypto.randomUUID();
+    const samples = sampleItems(data.today);
+    for (const [index, sample] of samples.entries()) {
       const reminder = reminderForSample(sample);
       await sql.query(
         `insert into items (
           id, user_id, original_type, original_content, image_data, image_mime, source_url,
           title, summary, category, extracted_date, extracted_time, expiration_date,
           location, address, amount, phone, coupon_brand, coupon_product,
-          recommended_actions, confidence, analysis_status, status,
-          reminder_date, reminder_enabled
+          action_type, recommended_actions, confidence, analysis_status, analysis_note, status,
+          reminder_date, reminder_enabled, created_at
         ) values (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20::jsonb,$21::jsonb,
-          'done','active',$22,$23
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21::jsonb,'{}'::jsonb,
+          'done',$22,'active',$23,$24, now() - ($25 || ' minutes')::interval
         )`,
         [
-          id,
+          crypto.randomUUID(),
           context.userId,
           sample.original_type,
           sample.original_content,
@@ -464,40 +530,14 @@ export const seedSamples = createServerFn({ method: "POST" })
           sample.phone,
           sample.coupon_brand,
           sample.coupon_product,
+          sample.recommended_actions[0] ?? null,
           JSON.stringify(sample.recommended_actions),
-          JSON.stringify({}),
+          SAMPLE_NOTE,
           reminder.reminder_date,
           reminder.reminder_enabled,
+          String(samples.length - index),
         ],
       );
     }
-
-    const rows = await sql.query<ItemRow>(
-      `select ${LIST_COLUMNS} from items where user_id = $1 order by created_at desc`,
-      [context.userId],
-    );
-    return rows.map(mapItem);
-  });
-
-export const reanalyzeItem = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator((id: string) => id)
-  .handler(async ({ context, data: id }) => {
-    const current = await getItemRow(context.userId, id);
-    if (!current) throw new Error("항목을 찾을 수 없습니다.");
-    const sql = await getSql();
-    await sql.query(
-      `update items set analysis_status = 'pending', analysis_error = null, updated_at = now()
-       where id = $1 and user_id = $2`,
-      [id, context.userId],
-    );
-    const img = await sql.query<{ image_data: string | null; image_mime: string | null }>(
-      `select image_data, image_mime from items where id = $1 and user_id = $2 limit 1`,
-      [id, context.userId],
-    );
-    const image = img[0]?.image_data
-      ? { base64: img[0].image_data, mime: img[0].image_mime || "image/jpeg" }
-      : null;
-    const pending = { ...current, analysis_status: "pending" as const };
-    return analyzeAndUpdate(context.userId, pending, image);
+    return listRows(context.userId);
   });

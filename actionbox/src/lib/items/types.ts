@@ -31,8 +31,27 @@ export type ItemStatus = (typeof STATUSES)[number];
 export const ANALYSIS_STATUSES = ["pending", "done", "failed"] as const;
 export type AnalysisStatus = (typeof ANALYSIS_STATUSES)[number];
 
+/**
+ * Actions the AI may recommend. Only codes the app can actually perform —
+ * the model picks from this list, so every recommended button works.
+ */
+export const ACTION_CODES = [
+  "calendar",
+  "remind",
+  "map",
+  "call",
+  "open",
+  "visit",
+  "today",
+  "complete",
+  "archive",
+] as const;
+export type ActionCode = (typeof ACTION_CODES)[number];
+
 export type ConfidenceMap = {
+  category?: number | null;
   date?: number | null;
+  time?: number | null;
   expiration_date?: number | null;
   location?: number | null;
   address?: number | null;
@@ -57,11 +76,13 @@ export type Item = {
   reservation_number: string | null;
   coupon_brand: string | null;
   coupon_product: string | null;
-  action_type: string | null;
-  recommended_actions: string[];
+  action_type: ActionCode | null;
+  recommended_actions: ActionCode[];
   confidence: ConfidenceMap;
   analysis_status: AnalysisStatus;
   analysis_error: string | null;
+  /** User-facing note from analysis (what to check), or null. */
+  analysis_note: string | null;
   status: ItemStatus;
   reminder_date: string | null;
   reminder_enabled: boolean;
@@ -110,11 +131,16 @@ export type AiExtraction = {
   reservation_number: string | null;
   coupon_brand: string | null;
   coupon_product: string | null;
-  recommended_actions: string[];
+  url: string | null;
+  recommended_actions: ActionCode[];
   confidence: ConfidenceMap;
+  /** Field labels whose value was dropped for low confidence. */
+  uncertain: string[];
 };
 
 export type CreateItemInput = {
+  /** Client-generated UUID so a retried save never creates a duplicate. */
+  id: string;
   original_type: OriginalType;
   original_content?: string | null;
   source_url?: string | null;
@@ -130,6 +156,14 @@ export function isStatus(value: string): value is ItemStatus {
   return (STATUSES as readonly string[]).includes(value);
 }
 
-export function relevantDate(item: Pick<Item, "expiration_date" | "extracted_date" | "reminder_date">): string | null {
-  return item.expiration_date || item.extracted_date || item.reminder_date || null;
+export function isActionCode(value: string): value is ActionCode {
+  return (ACTION_CODES as readonly string[]).includes(value);
+}
+
+/** Note shown on the example items so they are never mistaken for AI output. */
+export const SAMPLE_NOTE = "예시 항목이에요. AI 분석 없이 미리 채워 둔 값입니다.";
+
+/** The date that drives D-day: expiration for deadlines, otherwise the event date. */
+export function keyDate(item: Pick<Item, "expiration_date" | "extracted_date">): string | null {
+  return item.expiration_date || item.extracted_date || null;
 }

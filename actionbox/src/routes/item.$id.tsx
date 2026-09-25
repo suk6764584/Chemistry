@@ -3,33 +3,53 @@ import { AppShell } from "@/components/app-shell";
 import { ItemDetail } from "@/components/item-detail";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RedirectToSignIn } from "@/lib/auth/gates";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { useSession } from "@/lib/use-session";
 import { useItem } from "@/lib/query";
 
-export const Route = createFileRoute("/item/$id")({ component: ItemPage });
+export const Route = createFileRoute("/item/$id")({
+  validateSearch: (search: Record<string, unknown>): { edit?: boolean } =>
+    search.edit === true || search.edit === "true" ? { edit: true } : {},
+  component: ItemPage,
+});
 
 function ItemPage() {
   const { id } = Route.useParams();
-  const { user, isPending } = useCurrentUserState();
+  const { edit } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { user, isPending } = useSession();
   const item = useItem(id, Boolean(user));
 
   if (!isPending && !user) return <RedirectToSignIn />;
 
   return (
-    <AppShell>
-      <Link to="/" className="mb-4 inline-flex h-11 items-center text-sm text-muted">
-        홈으로
-      </Link>
-      {item.isPending || isPending ? (
+    <AppShell back>
+      {item.data ? (
+        <ItemDetail
+          key={`${item.data.id}-${edit ? "edit" : "view"}`}
+          item={item.data}
+          startEditing={edit}
+          onEditingChange={(editing) => {
+            if (!editing && edit) void navigate({ search: {}, replace: true });
+          }}
+        />
+      ) : item.isPending || isPending ? (
         <div className="space-y-3">
-          <Skeleton className="h-56 w-full rounded-lg" />
+          <Skeleton className="h-48 w-full rounded-xl" />
           <Skeleton className="h-8 w-2/3" />
-          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-24 w-full rounded-xl" />
         </div>
-      ) : item.data ? (
-        <ItemDetail item={item.data} />
       ) : (
-        <p className="text-sm text-muted">항목을 찾을 수 없습니다.</p>
+        <div className="rounded-xl bg-surface p-5 text-center shadow-[var(--shadow-card)]">
+          <p className="text-[15px] font-semibold">
+            {item.isError ? "항목을 불러오지 못했어요" : "항목을 찾을 수 없어요"}
+          </p>
+          <p className="mt-1 text-[13px] text-subtle">
+            {item.isError ? "인터넷 연결을 확인해 주세요." : "삭제되었거나 다른 계정의 항목이에요."}
+          </p>
+          <Link to="/" className="mt-3 inline-flex h-11 items-center rounded-md bg-surface-2 px-4 text-[14px] font-semibold">
+            홈으로
+          </Link>
+        </div>
       )}
     </AppShell>
   );
