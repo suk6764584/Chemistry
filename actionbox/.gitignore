@@ -1,0 +1,10 @@
+node_modules/
+.node_modules.lock
+.vercel/
+.tanstack/
+.output/
+dist/
+.grok/status
+.grok/og-pending
+screenshots/*
+!screenshots/.gitkeep
