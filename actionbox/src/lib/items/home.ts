@@ -52,3 +52,14 @@ export function doneItems(items: Item[], status: "completed" | "archived") {
     .filter((i) => i.status === status)
     .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
 }
+
+/** Analysis that has shown "pending" this long with no request from this tab has stalled. */
+const STALE_PENDING_MS = 90_000;
+
+export function isStalled(item: Item, analyzingIds: string[]): boolean {
+  return (
+    item.analysis_status === "pending" &&
+    !analyzingIds.includes(item.id) &&
+    Date.now() - new Date(item.updated_at).getTime() > STALE_PENDING_MS
+  );
+}

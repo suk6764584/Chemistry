@@ -14,7 +14,7 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: APP_NAME },
-      { name: "theme-color", content: "#f4f5f7" },
+      { name: "theme-color", content: "#f2f3f5" },
       {
         name: "description",
         content: "저장만 하고 잊은 정보를, 필요한 순간 실제 행동으로 연결합니다.",
@@ -40,12 +40,24 @@ export const Route = createRootRoute({
               <Outlet />
             </CaptureProvider>
             <Toaster
-              position="top-center"
-              offset={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
-              mobileOffset={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
+              position="bottom-center"
+              offset={{ bottom: "calc(env(safe-area-inset-bottom) + 148px)" }}
+              mobileOffset={{ bottom: "calc(env(safe-area-inset-bottom) + 148px)" }}
               toastOptions={{
                 className: "font-sans",
-                style: { borderRadius: "14px", fontSize: "15px" },
+                style: {
+                  background: "var(--color-fg)",
+                  color: "var(--color-surface)",
+                  border: "none",
+                  borderRadius: "var(--radius-lg)",
+                  fontSize: "var(--text-small)",
+                },
+                actionButtonStyle: {
+                  background: "transparent",
+                  color: "var(--color-primary-inverse)",
+                  fontWeight: 600,
+                  fontSize: "var(--text-small)",
+                },
               }}
             />
           </AppQueryProvider>

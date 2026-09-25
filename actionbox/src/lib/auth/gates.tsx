@@ -109,10 +109,10 @@ export function UserButton() {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="계정 메뉴"
-        className="grid size-10 place-items-center overflow-hidden rounded-full bg-surface text-sm font-bold shadow-[var(--shadow-card)]"
+        className="grid size-9 place-items-center overflow-hidden rounded-full bg-surface-3 text-small font-semibold"
       >
         {user.profileImageUrl ? (
-          <img src={user.profileImageUrl} alt="" className="size-10 object-cover" />
+          <img src={user.profileImageUrl} alt="" className="size-9 object-cover" />
         ) : (
           label.charAt(0).toUpperCase()
         )}
@@ -128,11 +128,11 @@ export function UserButton() {
           />
           <div
             role="menu"
-            className="absolute top-12 right-0 z-50 w-60 rounded-lg bg-surface p-1.5 shadow-[var(--shadow-float)]"
+            className="absolute top-11 right-0 z-50 w-60 rounded-xl bg-surface p-2 shadow-float"
           >
-            <p className="truncate px-3 pt-2 pb-1 text-[15px] font-semibold">{label}</p>
+            <p className="truncate px-3 pt-2 pb-1 text-body font-semibold">{label}</p>
             {user.primaryEmail && user.primaryEmail !== label ? (
-              <p className="truncate px-3 pb-2 text-[13px] text-subtle">{user.primaryEmail}</p>
+              <p className="truncate px-3 pb-2 text-small text-muted">{user.primaryEmail}</p>
             ) : null}
             {canSignOut && (
               <button
@@ -144,7 +144,7 @@ export function UserButton() {
                   // Success navigates away; on failure re-enable so it can be retried.
                   void signOut().catch(() => setSigningOut(false));
                 }}
-                className="h-11 w-full rounded-md px-3 text-left text-[15px] font-semibold text-danger active:bg-surface-2 disabled:opacity-50"
+                className="h-11 w-full rounded-md px-3 text-left text-body font-medium text-danger active:bg-surface-2 disabled:opacity-50"
               >
                 {signingOut ? "로그아웃 중…" : "로그아웃"}
               </button>

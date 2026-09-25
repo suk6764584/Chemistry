@@ -15,9 +15,9 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
       <span className="text-danger" aria-hidden="true">
         <TriangleAlert className="size-10" strokeWidth={2} />
       </span>
-      <h1 className="text-lg font-bold">문제가 생겼어요</h1>
-      <p className="max-w-md text-sm break-words text-muted">{errorMessage(error)}</p>
-      <a href="/" className="mt-2 inline-flex h-11 items-center rounded-md bg-surface-2 px-4 text-[14px] font-semibold">
+      <h1 className="text-title font-semibold">문제가 생겼어요</h1>
+      <p className="max-w-md text-small break-words text-muted">{errorMessage(error)}</p>
+      <a href="/" className="mt-2 inline-flex h-11 items-center rounded-md bg-surface-2 px-4 text-small font-semibold">
         홈으로
       </a>
     </main>

@@ -1,5 +1,17 @@
 import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// Teach tailwind-merge the design tokens from styles.css; otherwise it reads
+// `text-body` as a color and silently drops the real color class next to it.
+const twMerge = extendTailwindMerge({
+  extend: {
+    theme: {
+      text: ["micro", "small", "body", "title", "display"],
+      shadow: ["card", "float", "focus"],
+      radius: ["seg"],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -28,18 +40,18 @@ export function daysUntil(dateISO: string | null | undefined, now = new Date()):
   return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }
 
-export function formatKoreanDate(dateISO: string | null | undefined): string | null {
-  if (!dateISO) return null;
-  const [y, m, d] = dateISO.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  return `${y}년 ${m}월 ${d}일`;
-}
-
 export function formatShortDate(dateISO: string | null | undefined): string | null {
   if (!dateISO) return null;
   const [, m, d] = dateISO.split("-").map(Number);
   if (!m || !d) return null;
   return `${m}월 ${d}일`;
+}
+
+/** "10.8" — for dense list rows. */
+export function formatCompactDate(dateISO: string | null | undefined): string | null {
+  if (!dateISO) return null;
+  const [, m, d] = dateISO.split("-").map(Number);
+  return m && d ? `${m}.${d}` : null;
 }
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];

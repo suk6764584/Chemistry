@@ -1,33 +1,15 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { AlertCircle, BellRing, Image as ImageIcon, Loader2 } from "lucide-react";
+import { AlertCircle, BellRing, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { CategoryChips, CategoryPill } from "@/components/category";
-import { CardActions } from "@/components/item-actions";
+import { CategoryButton, CategoryPicker } from "@/components/category";
+import { RowActions } from "@/components/item-actions";
 import { ItemImage } from "@/components/item-image";
-import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { isStalled } from "@/lib/items/home";
 import { isReminderDue } from "@/lib/items/reminder";
-import { keyDate, type Item } from "@/lib/items/types";
+import { CATEGORY_LABELS, keyDate, type Item } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
-import { daysUntil, formatDday, formatShortDate } from "@/lib/utils";
-
-/** Analysis that has shown "pending" this long with no request from this tab has stalled. */
-const STALE_PENDING_MS = 90_000;
-
-export function isStalled(item: Item, analyzingIds: string[]): boolean {
-  return (
-    item.analysis_status === "pending" &&
-    !analyzingIds.includes(item.id) &&
-    Date.now() - new Date(item.updated_at).getTime() > STALE_PENDING_MS
-  );
-}
-
-function ddayTone(days: number): BadgeTone {
-  if (days < 0) return "neutral";
-  if (days <= 3) return "danger";
-  if (days <= 7) return "warn";
-  return "neutral";
-}
+import { cn, daysUntil, formatCompactDate, formatDday, formatShortDate, todayISO } from "@/lib/utils";
 
 function hostname(url: string | null): string | null {
   if (!url) return null;
@@ -38,18 +20,18 @@ function hostname(url: string | null): string | null {
   }
 }
 
-/** The one line under the title — only what matters for this type. */
+/** The facts that matter for this type, in one line. */
 function metaLine(item: Item): string | null {
   const parts: (string | null)[] = [];
   switch (item.category) {
     case "coupon":
-      if (item.expiration_date) parts.push(`${formatShortDate(item.expiration_date)}까지`);
+      if (item.expiration_date) parts.push(`${formatCompactDate(item.expiration_date)}까지`);
       if (item.coupon_brand && !item.title?.includes(item.coupon_brand)) parts.push(item.coupon_brand);
       else if (item.coupon_product && !item.title?.includes(item.coupon_product)) parts.push(item.coupon_product);
       break;
     case "event":
       if (item.extracted_date) {
-        parts.push([formatShortDate(item.extracted_date), item.extracted_time].filter(Boolean).join(" "));
+        parts.push([formatCompactDate(item.extracted_date), item.extracted_time].filter(Boolean).join(" "));
       }
       parts.push(item.location);
       break;
@@ -57,7 +39,7 @@ function metaLine(item: Item): string | null {
       parts.push(item.address && item.address !== item.title ? item.address : item.location !== item.title ? item.location : null);
       break;
     case "todo":
-      if (keyDate(item)) parts.push(`${formatShortDate(keyDate(item))}까지`);
+      if (keyDate(item)) parts.push(`${formatCompactDate(keyDate(item))}까지`);
       break;
     case "buy":
       parts.push(item.amount, hostname(item.source_url));
@@ -72,98 +54,116 @@ function metaLine(item: Item): string | null {
   return item.summary ? item.summary.split("\n")[0] : null;
 }
 
-export function ItemCard({ item }: { item: Item }) {
-  const [picking, setPicking] = useState(false);
-  const { patch, analyze } = useItemMutations();
-  const analyzingIds = useAnalyzingIds();
-  const date = keyDate(item);
+function Dday({ date }: { date: string | null }) {
   const days = daysUntil(date);
-  const dday = formatDday(date);
+  const text = formatDday(date);
+  if (days === null || !text) return null;
+  if (days < 0) return <span>{text} 지남</span>;
+  return (
+    <span className={cn("tabular-nums", days <= 3 ? "font-semibold text-danger" : days <= 7 ? "font-semibold text-warn" : "")}>
+      {text}
+    </span>
+  );
+}
+
+function Dot() {
+  return <span aria-hidden> · </span>;
+}
+
+/**
+ * One saved item as a list row: type icon, title, the one line of facts that
+ * matters, and the next action on the right. Tapping the row opens the detail.
+ */
+export function ItemRow({ item }: { item: Item }) {
+  const [picking, setPicking] = useState(false);
+  const { patch } = useItemMutations();
+  const analyzingIds = useAnalyzingIds();
+  const title = item.title || "제목 없음";
   const done = item.status === "completed" || item.status === "archived";
   const inbox = item.status === "inbox";
-  const analyzing = item.analysis_status === "pending" && !isStalled(item, analyzingIds);
   const stalled = isStalled(item, analyzingIds);
+  const analyzing = item.analysis_status === "pending" && !stalled;
   const meta = metaLine(item);
-  const reminderDue = !done && isReminderDue(item);
 
-  const changeCategory = (category: Item["category"]) => {
-    setPicking(false);
-    if (category === item.category) return;
-    patch.mutate(
-      { id: item.id, patch: { category } },
-      { onError: () => toast.error("분류를 바꾸지 못했어요. 다시 시도해 주세요.") },
-    );
-  };
+  const note = !inbox
+    ? null
+    : stalled
+      ? { tone: "warn" as const, text: "분석이 중간에 멈췄어요." }
+      : item.analysis_status === "failed"
+        ? { tone: "danger" as const, text: item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요." }
+        : item.analysis_note
+          ? { tone: "warn" as const, text: item.analysis_note }
+          : null;
 
   return (
-    <article className="rounded-xl bg-surface p-4 shadow-[var(--shadow-card)]" aria-label={item.title ?? "항목"}>
-      <div className="flex items-center justify-between gap-2">
-        <CategoryPill
-          category={item.category}
-          expanded={picking}
-          onClick={analyzing ? undefined : () => setPicking((v) => !v)}
-        />
-        <div className="flex items-center gap-1.5">
-          {reminderDue ? (
-            <Badge tone="warn">
-              <BellRing className="size-3" aria-hidden />
-              알림
-            </Badge>
-          ) : null}
-          {dday && days !== null && !done ? (
-            <Badge tone={ddayTone(days)}>{days < 0 ? `${dday} 지남` : dday}</Badge>
-          ) : null}
-          {done ? <Badge>{item.status === "completed" ? "완료" : "보관"}</Badge> : null}
-        </div>
+    <article aria-label={title} className="row-divider-text flex min-h-18 items-center gap-3 px-4 py-3">
+      <Link to="/item/$id" params={{ id: item.id }} className="absolute inset-0" aria-label={`${title} 자세히`} />
+      {inbox && item.has_image ? <ItemImage id={item.id} hasImage alt="" className="size-11 shrink-0 rounded-sm" /> : null}
+
+      <div className="min-w-0 flex-1 py-0.5">
+        <h3 className="line-clamp-2 text-body font-semibold">{title}</h3>
+        {analyzing ? (
+          <p className="mt-0.5 flex items-center gap-1.5 text-small text-muted" role="status">
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            내용을 읽는 중…
+          </p>
+        ) : (
+          <p className="mt-0.5 truncate text-small text-muted">
+            {!done && isReminderDue(item) ? (
+              <BellRing className="mr-1 inline size-3.5 -translate-y-px text-warn" aria-label="알림" />
+            ) : null}
+            {done ? (
+              <>
+                {item.status === "completed" ? "완료" : "보관"}
+                <Dot />
+                {formatShortDate(todayISO(new Date(item.updated_at)))}
+              </>
+            ) : (
+              <>
+                {inbox ? (
+                  <span className="relative z-10">
+                    <CategoryButton category={item.category} onClick={() => setPicking(true)} />
+                  </span>
+                ) : (
+                  CATEGORY_LABELS[item.category]
+                )}
+                {keyDate(item) ? (
+                  <>
+                    <Dot />
+                    <Dday date={keyDate(item)} />
+                  </>
+                ) : null}
+                {meta ? (
+                  <>
+                    <Dot />
+                    {meta}
+                  </>
+                ) : null}
+              </>
+            )}
+          </p>
+        )}
+        {note ? (
+          <p className={cn("mt-1 line-clamp-2 text-small", note.tone === "danger" ? "text-danger" : "text-warn")}>{note.text}</p>
+        ) : null}
       </div>
 
-      {picking ? (
-        <div className="mt-3">
-          <p className="mb-2 text-[13px] text-subtle">맞는 분류를 고르세요</p>
-          <CategoryChips value={item.category} onSelect={changeCategory} />
-        </div>
-      ) : null}
-
-      <Link to="/item/$id" params={{ id: item.id }} className="mt-2.5 flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-[17px] leading-snug font-bold tracking-tight">{item.title || "제목 없음"}</h3>
-          {meta ? <p className="mt-1 truncate text-[14px] text-muted">{meta}</p> : null}
-        </div>
-        {item.has_image && inbox ? (
-          <ItemImage id={item.id} hasImage alt="" className="size-14 shrink-0 rounded-md" />
-        ) : item.has_image ? (
-          <ImageIcon className="mt-1 size-4 shrink-0 text-subtle" aria-label="사진 있음" />
-        ) : null}
-      </Link>
+      <RowActions item={item} />
 
       {inbox ? (
-        analyzing ? (
-          <p className="mt-3 flex items-center gap-2 text-[14px] text-muted" role="status">
-            <Loader2 className="size-4 animate-spin" aria-hidden />
-            내용을 읽는 중이에요…
-          </p>
-        ) : stalled ? (
-          <Notice tone="warn">
-            분석이 중간에 멈췄어요.{" "}
-            <button
-              type="button"
-              className="font-semibold underline underline-offset-2"
-              onClick={() => analyze.mutate({ id: item.id })}
-            >
-              다시 분석
-            </button>
-          </Notice>
-        ) : item.analysis_status === "failed" ? (
-          <Notice tone="danger">{item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요."}</Notice>
-        ) : item.analysis_note ? (
-          <Notice tone="warn">{item.analysis_note}</Notice>
-        ) : null
-      ) : null}
-
-      {!analyzing && !stalled ? (
-        <div className="mt-3">
-          <CardActions item={item} />
-        </div>
+        <CategoryPicker
+          open={picking}
+          onOpenChange={setPicking}
+          value={item.category}
+          onSelect={(category) => {
+            setPicking(false);
+            if (category === item.category) return;
+            patch.mutate(
+              { id: item.id, patch: { category } },
+              { onError: () => toast.error("분류를 바꾸지 못했어요. 다시 시도해 주세요.") },
+            );
+          }}
+        />
       ) : null}
     </article>
   );
@@ -173,10 +173,10 @@ export function Notice({ tone, children }: { tone: "warn" | "danger" | "info"; c
   const styles = {
     warn: "bg-warn-soft text-warn",
     danger: "bg-danger-soft text-danger",
-    info: "bg-surface-2 text-muted",
+    info: "bg-surface text-muted shadow-card",
   } as const;
   return (
-    <p className={`mt-3 flex gap-2 rounded-md px-3 py-2.5 text-[14px] leading-snug ${styles[tone]}`}>
+    <p className={cn("flex gap-2 rounded-lg px-4 py-3 text-small", styles[tone])}>
       <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
       <span>{children}</span>
     </p>

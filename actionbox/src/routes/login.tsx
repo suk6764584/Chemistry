@@ -51,23 +51,23 @@ function Login() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-bg px-5 pt-[max(1rem,env(safe-area-inset-top))] pb-10">
-      <Link to="/" className="flex h-14 items-center gap-2 self-start">
-        <Logo className="size-7" />
-        <span className="text-[17px] font-extrabold tracking-tight">ActionBox</span>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface px-5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-10">
+      <Link to="/" className="flex h-13 items-center gap-2 self-start">
+        <Logo className="size-6" />
+        <span className="text-body font-bold tracking-tight">ActionBox</span>
       </Link>
 
-      <div className="mt-8">
-        <h1 className="text-[26px] leading-tight font-extrabold tracking-tight">
+      <div className="mt-10">
+        <h1 className="text-display font-bold">
           저장한 것을
           <br />
           제때 꺼내 쓰세요
         </h1>
-        <p className="mt-2 text-[15px] text-muted">로그인하면 넣은 항목이 이 계정에만 저장돼요.</p>
+        <p className="mt-2 text-body text-muted">로그인하면 넣은 항목이 이 계정에만 저장돼요.</p>
       </div>
 
       {hasDraft ? (
-        <p className="mt-5 rounded-lg bg-primary-soft px-4 py-3 text-[14px] font-medium text-primary">
+        <p className="mt-5 rounded-md bg-primary-soft px-4 py-3 text-small font-medium text-primary">
           입력하신 내용은 이 기기에 보관해 두었어요. 로그인하면 홈에서 바로 저장할 수 있어요.
         </p>
       ) : null}
@@ -99,15 +99,15 @@ function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {mode === "up" ? <p className="text-[13px] text-subtle">8자 이상으로 정해 주세요.</p> : null}
+          {mode === "up" ? <p className="px-1 text-small text-muted">8자 이상으로 정해 주세요.</p> : null}
         </div>
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
+        {error ? <p className="px-1 text-small text-danger">{error}</p> : null}
         <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? "처리 중…" : mode === "up" ? "가입하고 시작하기" : "로그인"}
         </Button>
         <button
           type="button"
-          className="h-11 w-full text-[14px] font-semibold text-muted"
+          className="h-11 w-full text-small font-semibold text-muted"
           onClick={() => {
             setMode(mode === "up" ? "in" : "up");
             setError(null);
@@ -119,7 +119,7 @@ function Login() {
 
       {authEnabled ? (
         <div className="mt-6 space-y-2.5">
-          <div className="flex items-center gap-3 text-[13px] text-subtle">
+          <div className="flex items-center gap-3 text-small text-muted">
             <span className="h-px flex-1 bg-line" />
             또는
             <span className="h-px flex-1 bg-line" />

@@ -4,23 +4,20 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap font-semibold transition-[background-color,transform] duration-150 ease-out active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
+  "inline-flex select-none items-center justify-center gap-1.5 whitespace-nowrap font-semibold transition-[background-color,transform,opacity] duration-150 ease-out active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40",
   {
     variants: {
       variant: {
         primary: "bg-primary text-on-primary active:bg-primary-strong",
-        soft: "bg-primary-soft text-primary",
         secondary: "bg-surface-2 text-fg active:bg-surface-3",
-        outline: "bg-surface text-fg shadow-[var(--shadow-card)] active:bg-surface-2",
+        outline: "bg-surface text-fg shadow-card active:bg-surface-2",
         ghost: "bg-transparent text-muted active:bg-surface-2",
         danger: "bg-danger text-on-primary",
-        "danger-soft": "bg-danger-soft text-danger",
       },
       size: {
-        sm: "h-9 rounded-sm px-3 text-sm",
-        md: "h-11 rounded-md px-4 text-[15px]",
-        lg: "h-13 rounded-lg px-5 text-base",
-        icon: "size-11 rounded-full",
+        sm: "h-9 rounded-full px-3.5 text-small",
+        md: "h-11 rounded-md px-4 text-body",
+        lg: "h-14 rounded-lg px-5 text-body",
       },
     },
     defaultVariants: { variant: "primary", size: "md" },

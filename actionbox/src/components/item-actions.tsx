@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Archive,
   Bell,
@@ -13,20 +13,22 @@ import {
   Phone,
   Pin,
   RotateCcw,
+  RotateCw,
   Sun,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Sheet } from "@/components/ui/sheet";
+import { Sheet, SheetRow } from "@/components/ui/sheet";
+import { isStalled } from "@/lib/items/home";
 import { buildIcs, downloadIcs, googleCalendarUrl } from "@/lib/items/ics";
 import { googleMapUrl, mapSearchQuery, naverMapUrl } from "@/lib/items/maps";
 import { reminderOnPatch } from "@/lib/items/reminder";
 import { keyDate, type ActionCode, type Category, type Item, type ItemPatch } from "@/lib/items/types";
-import { useItemMutations } from "@/lib/query";
+import { useAnalyzingIds, useItemMutations } from "@/lib/query";
 import { cn, daysUntil, formatShortDate } from "@/lib/utils";
 
-/** The buttons each card shows, by type — never the same row for every card. */
-const CARD_ACTIONS: Record<Category, ActionCode[]> = {
+/** What each type offers first on its row — never the same pair for every type. */
+const ROW_ACTIONS: Record<Category, ActionCode[]> = {
   coupon: ["complete", "remind"],
   event: ["calendar", "remind"],
   place: ["map", "visit"],
@@ -37,9 +39,14 @@ const CARD_ACTIONS: Record<Category, ActionCode[]> = {
   other: ["complete"],
 };
 
+type Code = ActionCode | "restore" | "confirm" | "edit" | "reanalyze";
+
 type ActionDef = {
-  key: string;
+  key: Code;
+  /** Full label: detail screen, accessible name of icon buttons. */
   label: string;
+  /** Short label for the compact row button. */
+  short: string;
   icon: LucideIcon;
   active?: boolean;
   run: () => void;
@@ -56,15 +63,10 @@ function completeLabel(category: Category) {
   return "완료";
 }
 
-function openLabel(category: Category) {
-  if (category === "read") return "읽기";
-  if (category === "buy") return "상품 보기";
-  return "링크 열기";
-}
-
-function useItemActions(item: Item) {
+export function useItemActions(item: Item) {
   const nav = useNavigate();
-  const { patch } = useItemMutations();
+  const { patch, analyze } = useItemMutations();
+  const analyzingIds = useAnalyzingIds();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
 
@@ -78,7 +80,7 @@ function useItemActions(item: Item) {
       { id: item.id, patch: next },
       {
         onSuccess: () =>
-          toast.success(message, {
+          toast(message, {
             action: undo
               ? { label: "되돌리기", onClick: () => patch.mutate({ id: item.id, patch: undo }) }
               : undefined,
@@ -94,23 +96,19 @@ function useItemActions(item: Item) {
       do_today: item.do_today,
     });
 
-  const needDate = () => {
-    toast("날짜를 먼저 입력해 주세요", { description: "상세 화면에서 날짜를 넣으면 알림을 켤 수 있어요." });
-    openEditor();
-  };
-
   const openEditor = () => nav({ to: "/item/$id", params: { id: item.id }, search: { edit: true } });
 
-  function def(code: ActionCode | "restore" | "confirm" | "edit", compact = false): ActionDef | null {
+  function def(code: Code): ActionDef | null {
     switch (code) {
       case "calendar":
         if (!date) return null;
-        return { key: code, label: "캘린더", icon: CalendarPlus, run: () => setCalendarOpen(true) };
+        return { key: code, label: "캘린더에 추가", short: "캘린더", icon: CalendarPlus, run: () => setCalendarOpen(true) };
       case "remind":
         if (item.reminder_enabled) {
           return {
             key: code,
-            label: compact ? "알림" : `알림 ${formatShortDate(item.reminder_date) ?? "켜짐"}`,
+            label: `알림 ${formatShortDate(item.reminder_date) ?? "켜짐"}`,
+            short: "알림",
             icon: BellRing,
             active: true,
             run: () => update({ reminder_enabled: false }, "알림을 껐어요", { reminder_enabled: true }),
@@ -118,11 +116,15 @@ function useItemActions(item: Item) {
         }
         return {
           key: code,
-          label: "알림",
+          label: "알림 받기",
+          short: "알림",
           icon: Bell,
           run: () => {
             const on = reminderOnPatch(item);
-            if (!on) return needDate();
+            if (!on) {
+              toast("날짜를 먼저 입력해 주세요", { description: "날짜가 있어야 알림 날짜를 정할 수 있어요." });
+              return openEditor();
+            }
             update(on, `${formatShortDate(on.reminder_date)}에 '지금 할 것'으로 올려 드릴게요`, {
               reminder_enabled: false,
             });
@@ -130,12 +132,13 @@ function useItemActions(item: Item) {
         };
       case "map":
         if (!mapQuery) return null;
-        return { key: code, label: "지도", icon: MapPin, run: () => setMapOpen(true) };
+        return { key: code, label: "지도 보기", short: "지도", icon: MapPin, run: () => setMapOpen(true) };
       case "call":
         if (!item.phone) return null;
         return {
           key: code,
-          label: "전화",
+          label: "전화 걸기",
+          short: "전화",
           icon: Phone,
           run: () => {
             window.location.href = `tel:${item.phone!.replace(/[^\d+]/g, "")}`;
@@ -143,11 +146,18 @@ function useItemActions(item: Item) {
         };
       case "open":
         if (!item.source_url) return null;
-        return { key: code, label: openLabel(item.category), icon: ExternalLink, run: () => openExternal(item.source_url!) };
+        return {
+          key: code,
+          label: item.category === "read" ? "읽기" : item.category === "buy" ? "상품 보기" : "링크 열기",
+          short: item.category === "read" ? "읽기" : item.category === "buy" ? "보기" : "열기",
+          icon: ExternalLink,
+          run: () => openExternal(item.source_url!),
+        };
       case "visit":
         return {
           key: code,
           label: "가볼 곳",
+          short: "가볼 곳",
           icon: Pin,
           active: item.do_today,
           run: () =>
@@ -161,6 +171,7 @@ function useItemActions(item: Item) {
         return {
           key: code,
           label: "오늘 하기",
+          short: "오늘",
           icon: Sun,
           active: item.do_today,
           run: () =>
@@ -171,52 +182,71 @@ function useItemActions(item: Item) {
             ),
         };
       case "complete":
-        return { key: code, label: completeLabel(item.category), icon: Check, run: () => moveTo("completed", "완료로 옮겼어요") };
+        return {
+          key: code,
+          label: completeLabel(item.category),
+          short: completeLabel(item.category),
+          icon: Check,
+          run: () => moveTo("completed", "완료로 옮겼어요"),
+        };
       case "archive":
-        return { key: code, label: "보관", icon: Archive, run: () => moveTo("archived", "보관했어요") };
+        return { key: code, label: "보관", short: "보관", icon: Archive, run: () => moveTo("archived", "보관했어요") };
       case "restore":
-        return { key: code, label: "되돌리기", icon: RotateCcw, run: () => moveTo("active", "다시 꺼냈어요") };
-      case "edit":
-        return { key: code, label: "직접 입력", icon: Pencil, run: openEditor };
+        return { key: code, label: "되돌리기", short: "되돌리기", icon: RotateCcw, run: () => moveTo("active", "다시 꺼냈어요") };
       case "confirm":
         return {
           key: code,
-          label: "확인",
+          label: "이대로 확인",
+          short: "확인",
           icon: Check,
-          run: () =>
-            update({ status: "active" }, "확인했어요 · 홈에 넣었어요", { status: "inbox" }),
+          run: () => update({ status: "active" }, "확인했어요 · 홈에 넣었어요", { status: "inbox" }),
+        };
+      case "edit":
+        return { key: code, label: "직접 입력", short: "입력", icon: Pencil, run: openEditor };
+      case "reanalyze":
+        return {
+          key: code,
+          label: "다시 분석",
+          short: "다시 분석",
+          icon: RotateCw,
+          run: () => analyze.mutate({ id: item.id }),
         };
     }
   }
 
-  const pick = (codes: (ActionCode | "restore" | "confirm" | "edit")[], max: number, compact = false) => {
-    const seen = new Set<string>();
+  const pick = (codes: Code[], max: number) => {
     const out: ActionDef[] = [];
-    for (const c of codes) {
-      const d = seen.has(c) ? null : def(c, compact);
-      seen.add(c);
+    for (const c of new Set(codes)) {
+      const d = def(c);
       if (d) out.push(d);
       if (out.length >= max) break;
     }
     return out;
   };
 
-  /** Two or three buttons for the card, by type. */
-  const cardActions = (): ActionDef[] => {
-    if (item.status === "completed" || item.status === "archived") return pick(["restore"], 1);
-    if (item.status === "inbox") {
-      if (item.analysis_status === "pending") return [];
-      return pick(item.analysis_status === "failed" ? ["edit"] : ["confirm", "edit"], 2);
-    }
-    if (overdue && (item.category === "event" || item.category === "coupon")) return pick(["complete", "archive"], 2);
-    return pick(CARD_ACTIONS[item.category], 2, true);
+  const stalled = isStalled(item, analyzingIds);
+
+  /** Row: one labelled button for the next step, one icon button for the second. */
+  const rowActions = (): { primary: ActionDef | null; secondary: ActionDef | null } => {
+    let codes: Code[];
+    if (item.status === "completed" || item.status === "archived") codes = ["restore"];
+    else if (item.status === "inbox") {
+      if (stalled) codes = ["reanalyze", "edit"];
+      else if (item.analysis_status === "pending") codes = [];
+      else if (item.analysis_status === "failed") codes = ["edit", "reanalyze"];
+      else codes = ["confirm", "edit"];
+    } else if (overdue && (item.category === "event" || item.category === "coupon")) codes = ["complete", "archive"];
+    else codes = ROW_ACTIONS[item.category];
+    const [primary = null, secondary = null] = pick(codes, 2);
+    return { primary, secondary };
   };
 
-  /** Up to four recommended actions for the detail screen: the AI's picks when it gave any, else the type defaults. */
-  const recommended = (): ActionDef[] => {
-    if (item.status === "completed" || item.status === "archived") return pick(["restore"], 1);
-    const base = item.recommended_actions.length ? item.recommended_actions : CARD_ACTIONS[item.category];
-    return pick([...base, ...CARD_ACTIONS[item.category], "call", "archive"], 4);
+  /** Detail: the AI's recommended actions (or the type defaults), feasible ones only. */
+  const detailActions = (): ActionDef[] => {
+    if (item.status === "completed" || item.status === "archived") return [];
+    // The type's own next step leads (it becomes the bottom button); the AI's picks follow.
+    const lead: Code[] = overdue && (item.category === "event" || item.category === "coupon") ? ["complete"] : ROW_ACTIONS[item.category].slice(0, 1);
+    return pick([...lead, ...item.recommended_actions, ...ROW_ACTIONS[item.category], "call", "archive"], 5);
   };
 
   const calendarEvent = date
@@ -231,23 +261,27 @@ function useItemActions(item: Item) {
 
   const sheets = (
     <>
-      <Sheet open={calendarOpen} onOpenChange={setCalendarOpen} title="캘린더에 추가">
-        <p className="mt-1 text-sm text-muted">
-          {formatShortDate(date)} {item.extracted_date ? item.extracted_time ?? "(종일)" : "(종일)"} · {title}
-        </p>
-        <div className="mt-4 space-y-2">
-          <SheetOption
+      <Sheet
+        open={calendarOpen}
+        onOpenChange={setCalendarOpen}
+        title="캘린더에 추가"
+        description={`${formatShortDate(date) ?? ""} ${item.extracted_date ? (item.extracted_time ?? "종일") : "종일"} · ${title}`}
+      >
+        <div className="mt-3 -mx-2">
+          <SheetRow
             title="휴대폰 기본 캘린더"
             hint=".ics 파일을 받아 캘린더 앱으로 엽니다"
+            trailing={<ChevronRight className="size-4 text-subtle" aria-hidden />}
             onClick={() => {
               if (!calendarEvent) return;
               downloadIcs(title, buildIcs(calendarEvent));
               setCalendarOpen(false);
             }}
           />
-          <SheetOption
+          <SheetRow
             title="Google 캘린더"
             hint="새 창에서 일정 추가 화면을 엽니다"
+            trailing={<ChevronRight className="size-4 text-subtle" aria-hidden />}
             onClick={() => {
               if (!calendarEvent) return;
               openExternal(googleCalendarUrl(calendarEvent));
@@ -256,20 +290,21 @@ function useItemActions(item: Item) {
           />
         </div>
       </Sheet>
-      <Sheet open={mapOpen} onOpenChange={setMapOpen} title="지도에서 보기">
-        <p className="mt-1 truncate text-sm text-muted">{mapQuery}</p>
-        <div className="mt-4 space-y-2">
-          <SheetOption
+      <Sheet open={mapOpen} onOpenChange={setMapOpen} title="지도에서 보기" description={mapQuery ?? undefined}>
+        <div className="mt-3 -mx-2">
+          <SheetRow
             title="네이버 지도"
             hint="국내 장소 검색에 적합해요"
+            trailing={<ChevronRight className="size-4 text-subtle" aria-hidden />}
             onClick={() => {
               if (mapQuery) openExternal(naverMapUrl(mapQuery));
               setMapOpen(false);
             }}
           />
-          <SheetOption
+          <SheetRow
             title="Google 지도"
             hint="해외 장소도 찾을 수 있어요"
+            trailing={<ChevronRight className="size-4 text-subtle" aria-hidden />}
             onClick={() => {
               if (mapQuery) openExternal(googleMapUrl(mapQuery));
               setMapOpen(false);
@@ -280,90 +315,91 @@ function useItemActions(item: Item) {
     </>
   );
 
-  return { cardActions, recommended, sheets, pending: patch.isPending };
+  return { rowActions, detailActions, sheets, busy: patch.isPending };
 }
 
-function SheetOption({ title, hint, onClick }: { title: string; hint: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex min-h-16 w-full items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3 text-left active:bg-surface-3"
-    >
-      <span>
-        <span className="block text-[15px] font-semibold">{title}</span>
-        <span className="block text-[13px] text-subtle">{hint}</span>
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-subtle" aria-hidden />
-    </button>
-  );
+function stop(e: React.MouseEvent) {
+  e.preventDefault();
+  e.stopPropagation();
 }
 
-function ActionButton({ action, primary, className }: { action: ActionDef; primary?: boolean; className?: string }) {
-  const Icon = action.active ? Check : action.icon;
+/** Compact labelled button on a row (App Store "받기" pattern). */
+function ActionPill({ action }: { action: ActionDef }) {
   return (
     <button
       type="button"
       onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+        stop(e);
         action.run();
       }}
       aria-pressed={action.active}
       className={cn(
-        "inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-md px-3.5 text-[14px] font-semibold whitespace-nowrap transition-colors",
-        primary || action.active
-          ? "bg-primary-soft text-primary active:bg-primary-soft/70"
-          : "bg-surface-2 text-fg active:bg-surface-3",
-        className,
+        "hit-area h-8 shrink-0 rounded-full px-3.5 text-small font-semibold whitespace-nowrap transition-colors",
+        action.active ? "bg-primary text-on-primary" : "bg-surface-2 text-primary active:bg-surface-3",
       )}
     >
-      <Icon className="size-4 shrink-0" strokeWidth={2.2} aria-hidden />
-      <span className="truncate">{action.label}</span>
+      {action.short}
     </button>
   );
 }
 
-/** Card footer: type-specific actions plus a way into the detail screen. */
-export function CardActions({ item }: { item: Item }) {
-  const { cardActions, sheets } = useItemActions(item);
-  const actions = cardActions();
+function ActionIconButton({ action }: { action: ActionDef }) {
+  const Icon = action.icon;
   return (
-    <div className="flex items-center gap-2">
-      {actions.map((a, i) => (
-        <ActionButton key={a.key} action={a} primary={i === 0} />
-      ))}
-      <Link
-        to="/item/$id"
-        params={{ id: item.id }}
-        className="ml-auto inline-flex h-11 shrink-0 items-center gap-0.5 rounded-md pr-1 pl-3 text-[14px] font-semibold whitespace-nowrap text-subtle active:bg-surface-2"
-      >
-        상세
-        <ChevronRight className="size-4" aria-hidden />
-      </Link>
+    <button
+      type="button"
+      onClick={(e) => {
+        stop(e);
+        action.run();
+      }}
+      aria-label={action.label}
+      aria-pressed={action.active}
+      className={cn(
+        "grid size-10 shrink-0 place-items-center rounded-full transition-colors active:bg-surface-2",
+        action.active ? "text-primary" : "text-subtle",
+      )}
+    >
+      <Icon className="size-5" strokeWidth={action.active ? 2.2 : 1.9} aria-hidden />
+    </button>
+  );
+}
+
+export function RowActions({ item }: { item: Item }) {
+  const { rowActions, sheets } = useItemActions(item);
+  const { primary, secondary } = rowActions();
+  if (!primary) return null;
+  return (
+    <div className="relative z-10 flex shrink-0 items-center gap-0.5">
+      {secondary ? <ActionIconButton action={secondary} /> : null}
+      <ActionPill action={primary} />
       {sheets}
     </div>
   );
 }
 
-export function RecommendedActions({ item, footer }: { item: Item; footer?: ReactNode }) {
-  const { recommended, sheets } = useItemActions(item);
-  const actions = recommended();
+/** Equal-width action tiles (Apple Maps place-card pattern). */
+export function ActionTiles({ actions }: { actions: ActionDef[] }) {
   if (!actions.length) return null;
   return (
-    <div>
-      <div className="grid grid-cols-2 gap-2">
-        {actions.map((a, i) => (
-          <ActionButton
+    <div className="grid auto-cols-fr grid-flow-col gap-2">
+      {actions.map((a) => {
+        const Icon = a.active ? Check : a.icon;
+        return (
+          <button
             key={a.key}
-            action={a}
-            primary={i === 0}
-            className={cn("h-12", actions.length % 2 === 1 && i === actions.length - 1 && "col-span-2")}
-          />
-        ))}
-      </div>
-      {footer}
-      {sheets}
+            type="button"
+            onClick={a.run}
+            aria-pressed={a.active}
+            className={cn(
+              "flex min-h-18 min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg bg-surface px-1 py-3 shadow-card transition-colors active:bg-surface-2",
+              a.active ? "text-primary" : "text-fg",
+            )}
+          >
+            <Icon className="size-5.5" strokeWidth={1.9} aria-hidden />
+            <span className="w-full truncate text-center text-micro font-medium">{a.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

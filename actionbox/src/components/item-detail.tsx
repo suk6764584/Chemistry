@@ -1,35 +1,19 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  Building2,
-  CalendarDays,
-  Clock,
-  ExternalLink,
-  Hash,
-  Loader2,
-  MapPin,
-  Pencil,
-  Phone,
-  Tag,
-  Ticket,
-  Wallet,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
-import { CategoryChips, CategoryPill } from "@/components/category";
-import { isStalled, Notice } from "@/components/item-card";
-import { RecommendedActions } from "@/components/item-actions";
+import { CategoryButton, CategoryPicker, CategoryTile } from "@/components/category";
+import { Notice } from "@/components/item-card";
+import { ActionTiles, useItemActions } from "@/components/item-actions";
 import { ItemImage } from "@/components/item-image";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { EmptyRow, ListGroup, SectionHeader } from "@/components/ui/list";
+import { Sheet, SheetRow } from "@/components/ui/sheet";
+import { isStalled } from "@/lib/items/home";
 import { REMINDER_PRESETS, reminderPreset } from "@/lib/items/reminder";
-import { keyDate, SAMPLE_NOTE, type Category, type Item, type ItemPatch } from "@/lib/items/types";
+import { CATEGORY_LABELS, keyDate, SAMPLE_NOTE, type Category, type Item, type ItemPatch } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
-import { addDaysISO, cn, formatDateWithWeekday, formatDday, formatKoreanDate, formatTimestamp } from "@/lib/utils";
+import { addDaysISO, cn, formatDateWithWeekday, formatDday, formatTimestamp } from "@/lib/utils";
 
 const STATUS_LABEL: Record<Item["status"], string> = {
   inbox: "확인 필요",
@@ -49,7 +33,11 @@ function errorText(e: unknown) {
   return e instanceof Error && e.message ? e.message : "저장하지 못했어요. 다시 시도해 주세요.";
 }
 
-export function ItemDetail({ item, startEditing, onEditingChange }: {
+export function ItemDetail({
+  item,
+  startEditing,
+  onEditingChange,
+}: {
   item: Item;
   startEditing?: boolean;
   onEditingChange?: (editing: boolean) => void;
@@ -57,6 +45,7 @@ export function ItemDetail({ item, startEditing, onEditingChange }: {
   const nav = useNavigate();
   const { patch, remove, analyze } = useItemMutations();
   const analyzingIds = useAnalyzingIds();
+  const actions = useItemActions(item);
   const [editing, setEditingState] = useState(Boolean(startEditing));
   const [picking, setPicking] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -73,57 +62,50 @@ export function ItemDetail({ item, startEditing, onEditingChange }: {
 
   if (editing) return <ItemEditor item={item} onClose={() => setEditing(false)} />;
 
+  const recommended = actions.detailActions();
+  const cta = item.status === "active" ? recommended[0] : undefined;
+  const tiles = item.status === "active" ? recommended.slice(1) : inbox && !analyzing ? recommended.slice(0, 4) : [];
+
   const confirm = () =>
     patch.mutate(
       { id: item.id, patch: { status: "active" } },
       {
-        onSuccess: () => toast.success("확인했어요 · 홈에 넣었어요"),
+        onSuccess: () => toast("확인했어요 · 홈에 넣었어요"),
         onError: (e) => toast.error(errorText(e)),
       },
     );
 
+  const restore = () =>
+    patch.mutate(
+      { id: item.id, patch: { status: "active" } },
+      { onSuccess: () => toast("다시 꺼냈어요"), onError: (e) => toast.error(errorText(e)) },
+    );
+
   return (
-    <div className={cn("space-y-6", inbox && !analyzing && "pb-20")}>
+    <div className="space-y-7 pt-1">
       <Original item={item} />
 
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <CategoryPill
-            category={item.category}
-            expanded={picking}
-            onClick={analyzing ? undefined : () => setPicking((v) => !v)}
-          />
-          <Badge tone={inbox ? "warn" : done ? "neutral" : "primary"}>{STATUS_LABEL[item.status]}</Badge>
+      <header className="px-1">
+        <div className="flex items-center gap-2 text-small text-muted">
+          <CategoryTile category={item.category} small />
+          {analyzing ? CATEGORY_LABELS[item.category] : <CategoryButton category={item.category} onClick={() => setPicking(true)} />}
+          <span aria-hidden>·</span>
+          <span className={cn("font-medium", inbox ? "text-warn" : done ? "text-muted" : "text-fg")}>
+            {STATUS_LABEL[item.status]}
+          </span>
         </div>
-        {picking ? (
-          <div className="mt-3">
-            <CategoryChips
-              value={item.category}
-              onSelect={(category) => {
-                setPicking(false);
-                if (category !== item.category) {
-                  patch.mutate({ id: item.id, patch: { category } }, { onError: (e) => toast.error(errorText(e)) });
-                }
-              }}
-            />
-          </div>
-        ) : null}
-        <h1 className="mt-3 text-[24px] leading-tight font-extrabold tracking-tight break-words">
-          {item.title || "제목 없음"}
-        </h1>
-        {item.summary ? (
-          <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-line text-muted">{item.summary}</p>
-        ) : null}
-      </div>
+        <h1 className="mt-3 text-display font-bold break-words">{item.title || "제목 없음"}</h1>
+        {item.summary ? <p className="mt-2 text-body whitespace-pre-line text-muted">{item.summary}</p> : null}
+      </header>
 
       {analyzing ? (
-        <div className="rounded-xl bg-surface p-4 shadow-[var(--shadow-card)]" role="status">
-          <p className="flex items-center gap-2 text-[15px] font-semibold">
-            <Loader2 className="size-4 animate-spin text-primary" aria-hidden />
-            내용을 읽는 중이에요
-          </p>
-          <p className="mt-1 text-[13px] text-subtle">원본은 이미 저장됐어요. 다른 화면으로 가도 분석은 계속돼요.</p>
-        </div>
+        <ListGroup className="flex items-center gap-3 px-4 py-4">
+          <Loader2 className="size-5 shrink-0 animate-spin text-primary" aria-hidden />
+          <div role="status">
+            <p className="text-body font-semibold">내용을 읽는 중이에요</p>
+            <p className="text-small text-muted">원본은 이미 저장됐어요. 다른 화면으로 가도 분석은 계속돼요.</p>
+          </div>
+        </ListGroup>
       ) : stalled ? (
         <Notice tone="warn">분석이 중간에 멈췄어요. 아래 ‘다시 분석’을 눌러 주세요.</Notice>
       ) : inbox && item.analysis_status === "failed" ? (
@@ -132,99 +114,133 @@ export function ItemDetail({ item, startEditing, onEditingChange }: {
         <Notice tone={item.analysis_note === SAMPLE_NOTE ? "info" : "warn"}>{item.analysis_note}</Notice>
       ) : null}
 
-      {!analyzing ? (
-        <Block title="추천 행동">
-          <RecommendedActions item={item} />
-        </Block>
+      {tiles.length ? (
+        <section aria-label="추천 행동">
+          <ActionTiles actions={tiles} />
+        </section>
       ) : null}
 
-      <Block
-        title="정보"
-        action={
-          analyzing ? null : (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="-mr-2 inline-flex h-10 items-center gap-1 rounded-md px-2 text-[14px] font-semibold text-primary active:bg-primary-soft"
-            >
-              <Pencil className="size-4" aria-hidden />
-              수정
-            </button>
-          )
-        }
-      >
+      <section aria-label="정보">
+        <SectionHeader
+          title="정보"
+          action={
+            analyzing ? null : (
+              <button type="button" onClick={() => setEditing(true)} className="hit-area text-body font-semibold text-primary">
+                수정
+              </button>
+            )
+          }
+        />
         <InfoList item={item} onEdit={() => setEditing(true)} />
-      </Block>
+      </section>
 
-      {!done && !analyzing ? <ReminderControl item={item} /> : null}
+      {!done && !analyzing ? <ReminderSection item={item} /> : null}
 
-      <p className="px-0.5 text-[13px] text-subtle">
-        {formatTimestamp(item.created_at)} 저장 · {TYPE_LABEL[item.original_type]}
-      </p>
-
-      <div className="border-t border-line pt-4">
-        {confirmDelete ? (
-          <div className="space-y-3">
-            <p className="text-[14px] text-danger">이 항목과 원본을 완전히 지웁니다. 되돌릴 수 없어요.</p>
-            <div className="flex gap-2">
-              <Button variant="secondary" className="flex-1" onClick={() => setConfirmDelete(false)}>
-                취소
-              </Button>
-              <Button
-                variant="danger"
-                className="flex-1"
-                disabled={remove.isPending}
-                onClick={() =>
-                  remove.mutate(item.id, {
-                    onSuccess: () => {
-                      toast.success("삭제했어요");
-                      nav({ to: "/" });
-                    },
-                    onError: (e) => toast.error(errorText(e)),
-                  })
-                }
-              >
-                완전히 삭제
-              </Button>
-            </div>
-          </div>
-        ) : (
+      <div className="space-y-3">
+        <p className="px-1 text-small text-muted">
+          {formatTimestamp(item.created_at)} 저장 · {TYPE_LABEL[item.original_type]}
+        </p>
+        <ListGroup>
           <button
             type="button"
-            className="h-11 px-0.5 text-[14px] font-semibold text-subtle active:text-danger"
             onClick={() => setConfirmDelete(true)}
+            className="flex min-h-13 w-full items-center px-4 text-left text-body font-medium text-danger active:bg-surface-2"
           >
             항목 삭제
           </button>
-        )}
+        </ListGroup>
       </div>
 
-      {inbox && !analyzing ? (
+      <Sheet
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="이 항목을 삭제할까요?"
+        description="원본과 정보가 모두 지워지고 되돌릴 수 없어요."
+      >
+        <div className="mt-5 flex gap-2">
+          <Button variant="secondary" size="lg" className="flex-1" onClick={() => setConfirmDelete(false)}>
+            취소
+          </Button>
+          <Button
+            variant="danger"
+            size="lg"
+            className="flex-1"
+            disabled={remove.isPending}
+            onClick={() =>
+              remove.mutate(item.id, {
+                onSuccess: () => {
+                  setConfirmDelete(false);
+                  toast("삭제했어요");
+                  nav({ to: "/" });
+                },
+                onError: (e) => toast.error(errorText(e)),
+              })
+            }
+          >
+            완전히 삭제
+          </Button>
+        </div>
+      </Sheet>
+
+      <CategoryPicker
+        open={picking}
+        onOpenChange={setPicking}
+        value={item.category}
+        onSelect={(category) => {
+          setPicking(false);
+          if (category !== item.category) {
+            patch.mutate({ id: item.id, patch: { category } }, { onError: (e) => toast.error(errorText(e)) });
+          }
+        }}
+      />
+      {actions.sheets}
+
+      {analyzing ? null : inbox ? (
         <BottomBar>
           {item.analysis_status === "failed" || stalled ? (
             <>
               <Button
                 variant="secondary"
-                className="h-12 flex-1"
+                size="lg"
+                className="flex-1"
                 disabled={analyze.isPending}
                 onClick={() => analyze.mutate({ id: item.id })}
               >
                 다시 분석
               </Button>
-              <Button className="h-12 flex-[1.4]" onClick={() => setEditing(true)}>
+              <Button size="lg" className="flex-[1.6]" onClick={() => setEditing(true)}>
                 직접 입력
               </Button>
             </>
           ) : (
             <>
-              <Button variant="secondary" className="h-12 flex-1" onClick={() => setEditing(true)}>
+              <Button variant="secondary" size="lg" className="flex-1" onClick={() => setEditing(true)}>
                 수정
               </Button>
-              <Button className="h-12 flex-[1.4]" disabled={patch.isPending} onClick={confirm}>
+              <Button size="lg" className="flex-[1.6]" disabled={patch.isPending} onClick={confirm}>
                 이대로 확인
               </Button>
             </>
           )}
+        </BottomBar>
+      ) : done ? (
+        <BottomBar>
+          <Button size="lg" className="flex-1" disabled={patch.isPending} onClick={restore}>
+            되돌리기
+          </Button>
+        </BottomBar>
+      ) : cta ? (
+        <BottomBar>
+          <Button
+            size="lg"
+            variant={cta.active ? "secondary" : "primary"}
+            className="flex-1"
+            aria-pressed={cta.active}
+            onClick={cta.run}
+          >
+            {cta.active ? <Check className="size-5" aria-hidden /> : <cta.icon className="size-5" aria-hidden />}
+            {cta.label}
+          </Button>
         </BottomBar>
       ) : null}
     </div>
@@ -233,21 +249,9 @@ export function ItemDetail({ item, startEditing, onEditingChange }: {
 
 function BottomBar({ children }: { children: ReactNode }) {
   return (
-    <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 mx-auto w-full max-w-md px-4 pb-3">
-      <div className="flex gap-2 rounded-xl bg-surface p-2 shadow-[var(--shadow-float)]">{children}</div>
+    <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface">
+      <div className="mx-auto flex w-full max-w-md gap-2 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
     </div>
-  );
-}
-
-function Block({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
-  return (
-    <section aria-label={title}>
-      <div className="mb-2 flex h-10 items-center justify-between px-0.5">
-        <h2 className="text-[15px] font-bold text-muted">{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
   );
 }
 
@@ -258,28 +262,30 @@ function Original({ item }: { item: Item }) {
         id={item.id}
         hasImage
         alt={item.title || "원본 이미지"}
-        className="max-h-80 min-h-40 w-full rounded-xl bg-surface-3 object-contain"
+        className="max-h-80 min-h-40 w-full rounded-2xl bg-surface-3 object-contain"
       />
     );
   }
   if (item.original_type === "url" && item.source_url) {
     return (
-      <a
-        href={item.source_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-3 rounded-xl bg-surface p-4 shadow-[var(--shadow-card)] active:bg-surface-2"
-      >
-        <ExternalLink className="size-5 shrink-0 text-primary" aria-hidden />
-        <span className="min-w-0 flex-1 truncate text-[14px] text-muted">{item.source_url}</span>
-      </a>
+      <ListGroup>
+        <a
+          href={item.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex min-h-14 items-center gap-3 px-4 active:bg-surface-2"
+        >
+          <ExternalLink className="size-5 shrink-0 text-primary" aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-small text-muted">{item.source_url}</span>
+        </a>
+      </ListGroup>
     );
   }
   if (item.original_content) {
     return (
-      <p className="max-h-60 overflow-y-auto rounded-xl bg-surface p-4 text-[15px] leading-relaxed break-words whitespace-pre-wrap shadow-[var(--shadow-card)]">
-        {item.original_content}
-      </p>
+      <ListGroup className="max-h-60 overflow-y-auto px-4 py-3.5">
+        <p className="text-body break-words whitespace-pre-wrap">{item.original_content}</p>
+      </ListGroup>
     );
   }
   return null;
@@ -294,45 +300,40 @@ function hostname(url: string): string {
 }
 
 function InfoList({ item, onEdit }: { item: Item; onEdit: () => void }) {
-  const rows: { icon: LucideIcon; label: string; value: ReactNode; warn?: boolean }[] = [];
-  const withDday = (date: string) => {
-    const dday = formatDday(date);
-    return (
-      <>
-        {formatDateWithWeekday(date)}
-        {dday ? <span className="ml-1.5 text-[13px] font-semibold text-subtle">{dday}</span> : null}
-      </>
-    );
-  };
+  const rows: { label: string; value: ReactNode; missing?: boolean }[] = [];
+  const withDday = (date: string) => (
+    <>
+      {formatDateWithWeekday(date)}
+      {formatDday(date) ? <span className="ml-1.5 text-muted tabular-nums">{formatDday(date)}</span> : null}
+    </>
+  );
 
-  if (item.extracted_date) rows.push({ icon: CalendarDays, label: "날짜", value: withDday(item.extracted_date) });
-  else if (item.category === "event") rows.push({ icon: CalendarDays, label: "날짜", value: "확인 필요", warn: true });
-  if (item.extracted_time) rows.push({ icon: Clock, label: "시간", value: item.extracted_time });
+  if (item.extracted_date) rows.push({ label: "날짜", value: withDday(item.extracted_date) });
+  else if (item.category === "event") rows.push({ label: "날짜", value: null, missing: true });
+  if (item.extracted_time) rows.push({ label: "시간", value: item.extracted_time });
   if (item.expiration_date) {
-    rows.push({ icon: CalendarDays, label: item.category === "coupon" ? "만료일" : "마감일", value: withDday(item.expiration_date) });
+    rows.push({ label: item.category === "coupon" ? "만료일" : "마감일", value: withDday(item.expiration_date) });
   } else if (item.category === "coupon") {
-    rows.push({ icon: CalendarDays, label: "만료일", value: "확인 필요", warn: true });
+    rows.push({ label: "만료일", value: null, missing: true });
   }
-  if (item.coupon_brand) rows.push({ icon: Tag, label: "브랜드", value: item.coupon_brand });
-  if (item.coupon_product) rows.push({ icon: Ticket, label: "상품", value: item.coupon_product });
-  if (item.location) rows.push({ icon: Building2, label: "장소", value: item.location });
-  if (item.address) rows.push({ icon: MapPin, label: "주소", value: item.address });
-  if (item.amount) rows.push({ icon: Wallet, label: "금액", value: item.amount });
+  if (item.coupon_brand) rows.push({ label: "브랜드", value: item.coupon_brand });
+  if (item.coupon_product) rows.push({ label: "상품", value: item.coupon_product });
+  if (item.location) rows.push({ label: "장소", value: item.location });
+  if (item.address) rows.push({ label: "주소", value: item.address });
+  if (item.amount) rows.push({ label: "금액", value: item.amount });
   if (item.phone) {
     rows.push({
-      icon: Phone,
       label: "전화",
       value: (
-        <a className="text-primary" href={`tel:${item.phone.replace(/[^\d+]/g, "")}`}>
+        <a className="relative z-10 text-primary" href={`tel:${item.phone.replace(/[^\d+]/g, "")}`}>
           {item.phone}
         </a>
       ),
     });
   }
-  if (item.reservation_number) rows.push({ icon: Hash, label: "예약번호", value: item.reservation_number });
+  if (item.reservation_number) rows.push({ label: "예약번호", value: item.reservation_number });
   if (item.source_url && item.original_type !== "url") {
     rows.push({
-      icon: ExternalLink,
       label: "링크",
       value: (
         <a className="text-primary" href={item.source_url} target="_blank" rel="noopener noreferrer">
@@ -342,118 +343,121 @@ function InfoList({ item, onEdit }: { item: Item; onEdit: () => void }) {
     });
   }
 
-  if (!rows.length) {
-    return (
-      <button
-        type="button"
-        onClick={onEdit}
-        className="w-full rounded-xl border border-dashed border-line px-4 py-5 text-center text-[14px] text-subtle"
-      >
-        찾은 날짜·장소가 없어요. 눌러서 직접 입력하세요.
-      </button>
-    );
-  }
-
   return (
-    <dl className="divide-y divide-line rounded-xl bg-surface px-4 shadow-[var(--shadow-card)]">
-      {rows.map((r) => (
-        <div key={r.label} className="flex min-h-12 items-center gap-3 py-2.5">
-          <r.icon className="size-4 shrink-0 text-subtle" aria-hidden />
-          <dt className="w-16 shrink-0 text-[14px] text-subtle">{r.label}</dt>
-          <dd className={cn("min-w-0 flex-1 text-right text-[15px] font-medium break-words", r.warn && "text-warn")}>
-            {r.warn ? (
-              <button type="button" onClick={onEdit} className="font-semibold underline underline-offset-2">
-                {r.value}
-              </button>
-            ) : (
-              r.value
-            )}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <ListGroup>
+      {rows.length === 0 ? (
+        <button type="button" onClick={onEdit} className="w-full text-left active:bg-surface-2">
+          <EmptyRow>찾은 날짜·장소가 없어요. 눌러서 직접 입력하세요.</EmptyRow>
+        </button>
+      ) : (
+        <dl>
+          {rows.map((r) => (
+            <div key={r.label} className="row-divider-text flex min-h-13 items-center gap-4 px-4 py-3">
+              <dt className="w-16 shrink-0 text-body text-muted">{r.label}</dt>
+              <dd className="min-w-0 flex-1 text-right text-body break-words">
+                {r.missing ? (
+                  <button type="button" onClick={onEdit} className="hit-area font-semibold text-primary">
+                    확인 필요 · 입력하기
+                  </button>
+                ) : (
+                  r.value
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </ListGroup>
   );
 }
 
-function ReminderControl({ item }: { item: Item }) {
+function ReminderSection({ item }: { item: Item }) {
   const { patch } = useItemMutations();
+  const [open, setOpen] = useState(false);
+  const [choosingDate, setChoosingDate] = useState(false);
   const key = keyDate(item);
   const preset = reminderPreset(item);
-  const [choosingDate, setChoosingDate] = useState(false);
-  const showDate = choosingDate || preset === "custom";
 
-  const set = (next: ItemPatch) =>
+  const set = (next: ItemPatch) => {
     patch.mutate({ id: item.id, patch: next }, { onError: (e) => toast.error(errorText(e)) });
+    setOpen(false);
+  };
+
+  const presetLabel = typeof preset === "number" ? REMINDER_PRESETS.find((p) => p.days === preset)?.label : null;
+  const summary =
+    item.reminder_enabled && item.reminder_date
+      ? [presetLabel, formatDateWithWeekday(item.reminder_date)].filter(Boolean).join(" · ")
+      : "꺼짐";
 
   return (
-    <Block title="알림">
-      <div className="rounded-xl bg-surface p-4 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="알림 시점">
-          <Chip
-            active={!item.reminder_enabled && !showDate}
-            onClick={() => {
-              setChoosingDate(false);
-              set({ reminder_enabled: false });
-            }}
-          >
-            끄기
-          </Chip>
+    <section aria-label="알림">
+      <SectionHeader title="알림" />
+      <ListGroup>
+        <button
+          type="button"
+          onClick={() => {
+            setChoosingDate(preset === "custom");
+            setOpen(true);
+          }}
+          className="flex min-h-13 w-full items-center gap-3 px-4 text-left active:bg-surface-2"
+        >
+          <span className="flex-1 text-body">알림 시점</span>
+          <span className="text-body text-muted">{summary}</span>
+          <ChevronRight className="size-4 text-subtle" aria-hidden />
+        </button>
+      </ListGroup>
+      <p className="mt-2 px-1 text-small text-muted">
+        알림일이 되면 홈의 ‘지금 할 것’에 올라와요. 휴대폰 푸시 알림은 아직 지원하지 않아요.
+      </p>
+
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        title="알림 시점"
+        description={key ? `기준일 ${formatDateWithWeekday(key)}` : "날짜가 없는 항목이라 알림 날짜를 직접 골라야 해요."}
+      >
+        <div className="mt-3 -mx-2" role="radiogroup" aria-label="알림 시점">
+          <SheetRow
+            role="radio"
+            checked={!item.reminder_enabled}
+            title="끄기"
+            trailing={!item.reminder_enabled ? <Check className="size-5 text-primary" aria-hidden /> : null}
+            onClick={() => set({ reminder_enabled: false })}
+          />
           {key
             ? REMINDER_PRESETS.map((p) => (
-                <Chip
+                <SheetRow
                   key={p.days}
-                  active={preset === p.days && !choosingDate}
-                  onClick={() => {
-                    setChoosingDate(false);
-                    set({ reminder_enabled: true, reminder_date: addDaysISO(key, -p.days) });
-                  }}
-                >
-                  {p.label}
-                </Chip>
+                  role="radio"
+                  checked={preset === p.days}
+                  title={p.label}
+                  hint={formatDateWithWeekday(addDaysISO(key, -p.days)) ?? undefined}
+                  trailing={preset === p.days ? <Check className="size-5 text-primary" aria-hidden /> : null}
+                  onClick={() => set({ reminder_enabled: true, reminder_date: addDaysISO(key, -p.days) })}
+                />
               ))
             : null}
-          <Chip active={showDate} onClick={() => setChoosingDate(true)}>
-            날짜 선택
-          </Chip>
+          <SheetRow
+            role="radio"
+            checked={preset === "custom"}
+            title="날짜 직접 선택"
+            trailing={preset === "custom" ? <Check className="size-5 text-primary" aria-hidden /> : null}
+            onClick={() => setChoosingDate(true)}
+          />
         </div>
-        {showDate ? (
-          <Input
+        {choosingDate ? (
+          <input
             type="date"
             aria-label="알림 날짜"
-            className="mt-3"
-            value={item.reminder_date ?? ""}
+            defaultValue={item.reminder_date ?? ""}
             onChange={(e) => {
               if (e.target.value) set({ reminder_enabled: true, reminder_date: e.target.value });
             }}
+            className="mt-2 h-13 w-full rounded-md bg-surface-2 px-4 text-body focus:shadow-focus focus:outline-none"
           />
         ) : null}
-        <p className="mt-3 text-[13px] leading-snug text-subtle">
-          {item.reminder_enabled && item.reminder_date
-            ? `${formatKoreanDate(item.reminder_date)}부터 홈의 ‘지금 할 것’에 올라와요.`
-            : key
-              ? "알림이 꺼져 있어요."
-              : "날짜가 없는 항목이에요. 원하면 알림 날짜를 직접 고르세요."}{" "}
-          휴대폰 푸시 알림은 아직 지원하지 않아요.
-        </p>
-      </div>
-    </Block>
-  );
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      className={cn(
-        "h-10 rounded-full px-3.5 text-[14px] font-semibold",
-        active ? "bg-primary text-on-primary" : "bg-surface-2 text-muted active:bg-surface-3",
-      )}
-    >
-      {children}
-    </button>
+      </Sheet>
+    </section>
   );
 }
 
@@ -495,23 +499,22 @@ function formFrom(item: Item): Form {
   };
 }
 
+const fieldInput = "h-13 min-w-0 flex-1 bg-transparent text-body text-fg placeholder:text-subtle focus:outline-none";
+
 function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
   const { patch } = useItemMutations();
   const [form, setForm] = useState<Form>(() => formFrom(item));
+  const [picking, setPicking] = useState(false);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }));
   const inbox = item.status === "inbox";
   const showCoupon = form.category === "coupon" || Boolean(item.coupon_brand || item.coupon_product);
 
   const save = () => {
-    const nextPatch: ItemPatch = {
-      ...form,
-      status: inbox ? "active" : item.status,
-    };
     patch.mutate(
-      { id: item.id, patch: nextPatch },
+      { id: item.id, patch: { ...form, status: inbox ? "active" : item.status } },
       {
         onSuccess: () => {
-          toast.success(inbox ? "저장했어요 · 홈에 넣었어요" : "저장했어요");
+          toast(inbox ? "저장했어요 · 홈에 넣었어요" : "저장했어요");
           onClose();
         },
         onError: (e) => toast.error(errorText(e)),
@@ -520,77 +523,97 @@ function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
   };
 
   const text = (key: keyof Form, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <Field label={label} htmlFor={`f-${key}`}>
-      <Input id={`f-${key}`} value={form[key]} onChange={(e) => set(key, e.target.value)} {...props} />
+    <Field label={label}>
+      <input className={fieldInput} value={form[key]} onChange={(e) => set(key, e.target.value)} {...props} />
     </Field>
   );
 
   const date = (key: "extracted_date" | "expiration_date", label: string) => (
-    <Field label={label} htmlFor={`f-${key}`}>
-      <div className="relative">
-        <Input id={`f-${key}`} type="date" value={form[key]} onChange={(e) => set(key, e.target.value)} />
-        {form[key] ? (
+    <Field
+      label={label}
+      trailing={
+        form[key] ? (
           <button
             type="button"
             aria-label={`${label} 지우기`}
             onClick={() => set(key, "")}
-            className="absolute top-1/2 right-1 grid size-10 -translate-y-1/2 place-items-center rounded-full bg-surface text-subtle"
+            className="grid size-10 shrink-0 place-items-center rounded-full text-subtle active:bg-surface-2"
           >
             <X className="size-4" aria-hidden />
           </button>
-        ) : null}
-      </div>
+        ) : null
+      }
+    >
+      <input type="date" className={fieldInput} value={form[key]} onChange={(e) => set(key, e.target.value)} />
     </Field>
   );
 
   return (
     <form
-      className="space-y-5 pb-24"
+      className="space-y-7 pt-1"
       onSubmit={(e) => {
         e.preventDefault();
         save();
       }}
     >
-      <h1 className="text-[22px] font-extrabold tracking-tight">정보 수정</h1>
-      {text("title", "제목", { maxLength: 120 })}
-      <Field label="분류">
-        <CategoryChips value={form.category} onSelect={(c) => set("category", c)} />
-      </Field>
-      <Field label="요약 (3줄 이내)" htmlFor="f-summary">
-        <Textarea
-          id="f-summary"
-          className="min-h-24"
-          value={form.summary}
-          onChange={(e) => set("summary", e.target.value)}
-        />
-      </Field>
-      <div className="grid grid-cols-2 gap-3">
+      <h1 className="px-1 text-display font-bold">정보 수정</h1>
+
+      <FormGroup title="기본">
+        {text("title", "제목", { maxLength: 120 })}
+        <button
+          type="button"
+          onClick={() => setPicking(true)}
+          className="row-divider-text flex min-h-13 w-full items-center gap-4 px-4 text-left active:bg-surface-2"
+        >
+          <span className="w-16 shrink-0 text-body text-muted">분류</span>
+          <span className="flex-1 text-body">{CATEGORY_LABELS[form.category]}</span>
+          <ChevronRight className="size-4 text-subtle" aria-hidden />
+        </button>
+        <label className="row-divider-text block px-4 pt-3 pb-1">
+          <span className="text-body text-muted">요약 (3줄 이내)</span>
+          <textarea
+            className="mt-1 block min-h-20 w-full resize-none bg-transparent text-body focus:outline-none"
+            value={form.summary}
+            onChange={(e) => set("summary", e.target.value)}
+          />
+        </label>
+      </FormGroup>
+
+      <FormGroup title="날짜">
         {date("extracted_date", "날짜")}
         {text("extracted_time", "시간", { type: "time" })}
-      </div>
-      <div className="grid grid-cols-2 gap-3">
         {date("expiration_date", form.category === "coupon" ? "만료일" : "마감일")}
+      </FormGroup>
+
+      <FormGroup title="장소">
+        {text("location", "장소", { placeholder: "가게·장소 이름" })}
+        {text("address", "주소")}
+      </FormGroup>
+
+      <FormGroup title="기타">
         {text("amount", "금액", { placeholder: "예) 26,900원" })}
-      </div>
-      {text("location", "장소", { placeholder: "가게·장소 이름" })}
-      {text("address", "주소")}
-      <div className="grid grid-cols-2 gap-3">
         {text("phone", "전화", { type: "tel", inputMode: "tel" })}
         {text("reservation_number", "예약번호")}
-      </div>
-      {showCoupon ? (
-        <div className="grid grid-cols-2 gap-3">
-          {text("coupon_brand", "브랜드")}
-          {text("coupon_product", "상품")}
-        </div>
-      ) : null}
-      {text("source_url", "링크", { type: "url", inputMode: "url", placeholder: "https://" })}
+        {showCoupon ? text("coupon_brand", "브랜드") : null}
+        {showCoupon ? text("coupon_product", "상품") : null}
+        {text("source_url", "링크", { type: "url", inputMode: "url", placeholder: "https://" })}
+      </FormGroup>
+
+      <CategoryPicker
+        open={picking}
+        onOpenChange={setPicking}
+        value={form.category}
+        onSelect={(c) => {
+          set("category", c);
+          setPicking(false);
+        }}
+      />
 
       <BottomBar>
-        <Button variant="secondary" className="h-12 flex-1" onClick={onClose}>
+        <Button variant="secondary" size="lg" className="flex-1" onClick={onClose}>
           취소
         </Button>
-        <Button type="submit" className="h-12 flex-[1.4]" disabled={patch.isPending}>
+        <Button type="submit" size="lg" className="flex-[1.6]" disabled={patch.isPending}>
           {patch.isPending ? "저장 중…" : inbox ? "저장하고 확인" : "저장"}
         </Button>
       </BottomBar>
@@ -598,11 +621,25 @@ function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
   );
 }
 
-function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
+function FormGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="min-w-0 space-y-1.5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
+    <div role="group" aria-label={`${title} 항목`}>
+      <p className="mb-2 px-1 text-small font-medium text-muted" aria-hidden>
+        {title}
+      </p>
+      <ListGroup>{children}</ListGroup>
+    </div>
+  );
+}
+
+function Field({ label, children, trailing }: { label: string; children: ReactNode; trailing?: ReactNode }) {
+  return (
+    <div className="row-divider-text flex items-center pr-2 focus-within:bg-surface-2/60">
+      <label className="flex min-w-0 flex-1 items-center gap-4 pl-4">
+        <span className="w-16 shrink-0 text-body text-muted">{label}</span>
+        {children}
+      </label>
+      {trailing}
     </div>
   );
 }

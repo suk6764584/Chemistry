@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { ItemCard } from "@/components/item-card";
+import { ItemRow } from "@/components/item-card";
 import { LoadError } from "@/components/load-error";
+import { EmptyRow, ListGroup, PageTitle } from "@/components/ui/list";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RedirectToSignIn } from "@/lib/auth/gates";
-import { useSession } from "@/lib/use-session";
 import { doneItems } from "@/lib/items/home";
 import { useItems } from "@/lib/query";
+import { useSession } from "@/lib/use-session";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/completed")({ component: CompletedPage });
@@ -30,8 +31,8 @@ function CompletedPage() {
 
   return (
     <AppShell>
-      <h1 className="pt-2 text-[24px] font-extrabold tracking-tight">완료 · 보관</h1>
-      <div className="mt-4 grid grid-cols-2 gap-1 rounded-lg bg-surface-3/70 p-1" role="tablist">
+      <PageTitle title="완료 · 보관" />
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-md bg-surface-3/70 p-0.5" role="tablist">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -40,27 +41,23 @@ function CompletedPage() {
             aria-selected={tab === t.key}
             onClick={() => setTab(t.key)}
             className={cn(
-              "h-10 rounded-md text-[14px] font-semibold",
-              tab === t.key ? "bg-surface text-fg shadow-[var(--shadow-card)]" : "text-subtle",
+              "h-10 rounded-seg text-small font-semibold transition-colors",
+              tab === t.key ? "bg-surface text-fg shadow-card" : "text-muted",
             )}
           >
             {t.label} <span className="tabular-nums">{doneItems(all, t.key).length}</span>
           </button>
         ))}
       </div>
-      <div className="mt-4 space-y-2.5">
-        {isPending || items.isPending ? (
-          <Skeleton className="h-32 w-full rounded-xl" />
-        ) : items.isError ? (
-          <LoadError onRetry={() => void items.refetch()} />
-        ) : list.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-line px-4 py-8 text-center text-[14px] text-subtle">
-            {current.empty}
-          </p>
-        ) : (
-          list.map((item) => <ItemCard key={item.id} item={item} />)
-        )}
-      </div>
+      {isPending || items.isPending ? (
+        <Skeleton className="h-40 w-full rounded-2xl" />
+      ) : items.isError ? (
+        <LoadError onRetry={() => void items.refetch()} />
+      ) : (
+        <ListGroup>
+          {list.length === 0 ? <EmptyRow>{current.empty}</EmptyRow> : list.map((item) => <ItemRow key={item.id} item={item} />)}
+        </ListGroup>
+      )}
     </AppShell>
   );
 }

@@ -4,7 +4,8 @@ import { Camera, ChevronRight, ClipboardPaste, ImagePlus, Link2, Loader2, Type, 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sheet } from "@/components/ui/sheet";
+import { ListGroup } from "@/components/ui/list";
+import { Sheet, SheetRow } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/use-session";
 import { clearDraft, saveDraft, type Draft } from "@/lib/items/drafts";
@@ -217,7 +218,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         title={SHEET_TITLES[mode]}
       >
         {mode === "pick" ? (
-          <div className="mt-4 space-y-2">
+          <div className="mt-3 -mx-2">
             <PickOption
               icon={ImagePlus}
               label="스크린샷·사진 선택"
@@ -235,7 +236,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
           </div>
         ) : mode === "url" ? (
           <form
-            className="mt-4 space-y-3"
+            className="mt-5 space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
               submitUrl();
@@ -256,14 +257,14 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
                 }}
               />
               {typeof navigator !== "undefined" && typeof navigator.clipboard?.readText === "function" ? (
-                <Button variant="secondary" className="h-12 shrink-0" onClick={() => void pasteFromClipboard()}>
+                <Button variant="secondary" className="h-13 shrink-0" onClick={() => void pasteFromClipboard()}>
                   <ClipboardPaste className="size-4" aria-hidden />
                   붙여넣기
                 </Button>
               ) : null}
             </div>
-            <p className="text-[13px] text-subtle">로그인이 필요한 페이지는 내용을 읽지 못할 수 있어요. 그래도 링크는 저장돼요.</p>
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <p className="px-1 text-small text-muted">로그인이 필요한 페이지는 내용을 읽지 못할 수 있어요. 그래도 링크는 저장돼요.</p>
+            {error ? <p className="px-1 text-small text-danger">{error}</p> : null}
             <Button type="submit" size="lg" className="w-full" disabled={busy}>
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
               {busy ? "저장 중…" : error ? "다시 시도" : "저장"}
@@ -271,7 +272,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
           </form>
         ) : mode === "text" ? (
           <form
-            className="mt-4 space-y-3"
+            className="mt-5 space-y-3"
             onSubmit={(e) => {
               e.preventDefault();
               submitText();
@@ -287,7 +288,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
                 draftId.current = uuid();
               }}
             />
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            {error ? <p className="px-1 text-small text-danger">{error}</p> : null}
             <Button type="submit" size="lg" className="w-full" disabled={busy}>
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
               {busy ? "저장 중…" : error ? "다시 시도" : "저장"}
@@ -306,7 +307,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
             )}
             {error ? (
               <>
-                <p className="text-sm text-danger">{error}</p>
+                <p className="px-1 text-small text-danger">{error}</p>
                 {image ? (
                   <Button size="lg" className="w-full" onClick={() => void save(image)}>
                     다시 시도
@@ -318,7 +319,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
                 )}
               </>
             ) : (
-              <p className="flex items-center justify-center gap-2 py-2 text-[15px] text-muted" role="status">
+              <p className="flex items-center justify-center gap-2 py-2 text-body text-muted" role="status">
                 <Loader2 className="size-4 animate-spin" aria-hidden />
                 {image ? "저장하는 중…" : "사진을 준비하는 중…"}
               </p>
@@ -342,20 +343,17 @@ function PickOption({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <SheetRow
+      title={label}
+      hint={hint}
       onClick={onClick}
-      className="flex min-h-16 w-full items-center gap-3.5 rounded-lg bg-surface-2 px-4 py-3 text-left active:bg-surface-3"
-    >
-      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface text-primary">
-        <Icon className="size-5" aria-hidden />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[16px] font-semibold">{label}</span>
-        <span className="block truncate text-[13px] text-subtle">{hint}</span>
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-subtle" aria-hidden />
-    </button>
+      leading={
+        <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-surface-2" aria-hidden>
+          <Icon className="size-5" strokeWidth={1.9} />
+        </span>
+      }
+      trailing={<ChevronRight className="size-4 shrink-0 text-subtle" aria-hidden />}
+    />
   );
 }
 
@@ -363,15 +361,15 @@ function PickOption({
 export function CaptureButtons() {
   const capture = useCapture();
   return (
-    <div className="grid gap-2.5">
-      <CaptureButton icon={ImagePlus} label="스크린샷 올리기" hint="쿠폰·포스터·캡처" onClick={() => capture.pickImage("screenshot")} />
-      <CaptureButton icon={Link2} label="링크 붙여넣기" hint="블로그·SNS·쇼핑" onClick={() => capture.open("url")} />
-      <CaptureButton icon={Type} label="텍스트 입력" hint="메모·예약 정보·할 일" onClick={() => capture.open("text")} />
-    </div>
+    <ListGroup>
+      <CaptureRow icon={ImagePlus} label="스크린샷 올리기" hint="쿠폰·포스터·캡처" onClick={() => capture.pickImage("screenshot")} />
+      <CaptureRow icon={Link2} label="링크 붙여넣기" hint="블로그·SNS·쇼핑" onClick={() => capture.open("url")} />
+      <CaptureRow icon={Type} label="텍스트 입력" hint="메모·예약 정보·할 일" onClick={() => capture.open("text")} />
+    </ListGroup>
   );
 }
 
-function CaptureButton({
+function CaptureRow({
   icon: Icon,
   label,
   hint,
@@ -386,13 +384,14 @@ function CaptureButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex h-16 w-full items-center gap-3.5 rounded-xl bg-surface px-4 text-left shadow-[var(--shadow-card)] active:bg-surface-2"
+      className="row-divider flex min-h-16 w-full items-center gap-3 px-4 text-left active:bg-surface-2"
     >
-      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-primary-soft text-primary">
-        <Icon className="size-5" aria-hidden />
+      <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-surface-2 text-fg" aria-hidden>
+        <Icon className="size-5" strokeWidth={1.9} />
       </span>
-      <span className="flex-1 text-[16px] font-semibold">{label}</span>
-      <span className="text-[13px] text-subtle">{hint}</span>
+      <span className="flex-1 text-body font-semibold">{label}</span>
+      <span className="text-small text-muted">{hint}</span>
+      <ChevronRight className="size-4 shrink-0 text-subtle" aria-hidden />
     </button>
   );
 }
