@@ -21,6 +21,13 @@ test("dates", () => {
   assert.equal(parseDate("다음 주 일요일", today), "2026-10-04");
   assert.equal(parseDate("월요일", "2026-09-30"), "2026-10-05");
   assert.equal(parseDate("2월 30일", today), null);
+  assert.equal(parseDate("금욜 3시 박사장 골프", today), "2026-10-02");
+  assert.equal(parseDate("과제 제출 10/15.", today), "2026-10-15");
+  assert.equal(parseDate("Essay due Oct 15, 11:59pm", today), "2026-10-15");
+  // A period is due at its end.
+  assert.equal(parseDate("접수기간: 2026.09.28 ~ 2026.10.05 18:00", today), "2026-10-05");
+  assert.equal(parseDate("9/28~10/2 연수 신청", today), "2026-10-02");
+  assert.equal(parseDate("10/3 14:00~16:00 세미나", today), "2026-10-03");
 });
 
 test("times", () => {
@@ -33,6 +40,10 @@ test("times", () => {
   assert.equal(parseTime("새벽 3시"), "03:00");
   assert.equal(parseTime("8시간 금식"), null);
   assert.equal(parseTime("우유 사기"), null);
+  assert.equal(parseTime("due 11:59pm"), "23:59");
+  assert.equal(parseTime("12:30 AM"), "00:30");
+  assert.equal(parseTime("2026.09.28 10:00 ~ 2026.10.05 18:00"), "18:00");
+  assert.equal(parseTime("10/3 14:00~16:00 세미나"), "14:00");
 });
 
 test("amounts", () => {

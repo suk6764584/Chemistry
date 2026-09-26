@@ -30,6 +30,7 @@ function metaLine(item: Item): string | null {
       else if (item.coupon_product && !item.title?.includes(item.coupon_product)) parts.push(item.coupon_product);
       break;
     case "event":
+    case "other":
       if (item.extracted_date) {
         parts.push([formatCompactDate(item.extracted_date), item.extracted_time].filter(Boolean).join(" "));
       }
@@ -58,7 +59,8 @@ function Dday({ date }: { date: string | null }) {
   const days = daysUntil(date);
   const text = formatDday(date);
   if (days === null || !text) return null;
-  if (days < 0) return <span>{text} 지남</span>;
+  // Bold, not just grey: a missed date must not be the quietest thing on the row.
+  if (days < 0) return <span className="font-semibold text-fg tabular-nums">{text} 지남</span>;
   return (
     <span className={cn("tabular-nums", days <= 3 ? "font-semibold text-danger" : days <= 7 ? "font-semibold text-warn" : "")}>
       {text}

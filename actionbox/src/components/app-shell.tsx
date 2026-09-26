@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link, Navigate, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft, CircleCheck, Home, Inbox, Plus, Search, type LucideIcon } from "lucide-react";
 import { useCapture } from "@/components/add-sheet";
@@ -31,7 +31,7 @@ export function Logo({ className }: { className?: string }) {
 }
 
 /**
- * Tab screens: brand bar, content, floating "넣기" button and a plain tab bar.
+ * Tab screens: brand bar, content, and a tab bar with the "넣기" button in the middle.
  * Detail screens (`detail`): back button + optional trailing control, no tab bar —
  * the screen brings its own bottom action bar.
  * Signed-in people without a current agreement are sent to /agree first
@@ -93,7 +93,7 @@ export function AppShell({
       <main
         className={cn(
           "flex-1 px-4",
-          detail ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(10rem+env(safe-area-inset-bottom))]",
+          detail ? "pb-[calc(6.5rem+env(safe-area-inset-bottom))]" : "pb-[calc(6.5rem+env(safe-area-inset-bottom))]",
         )}
       >
         {children}
@@ -109,37 +109,28 @@ function TabBar({ signedIn }: { signedIn: boolean }) {
   const items = useItems(signedIn);
   const inboxCount = items.data?.filter((i) => i.status === "inbox").length ?? 0;
   const capture = useCapture();
-  const hidden = useHideOnScrollDown();
 
   return (
     <>
-      <div
-        className={cn(
-          "pointer-events-none fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md justify-end px-4 pb-4 transition-[transform,opacity] duration-200",
-          hidden && "translate-y-4 opacity-0",
-        )}
-      >
-        <button
-          type="button"
-          tabIndex={hidden ? -1 : undefined}
-          onClick={() => capture.open()}
-          aria-label="새 항목 넣기"
-          className={cn(
-            "inline-flex h-13 items-center gap-1.5 rounded-full bg-primary pr-5 pl-4 text-body font-semibold text-on-primary shadow-float transition-transform active:scale-95",
-            hidden ? "pointer-events-none" : "pointer-events-auto",
-          )}
-        >
-          <Plus className="size-5" strokeWidth={2.4} aria-hidden />
-          넣기
-        </button>
-      </div>
       <nav
         aria-label="주요 메뉴"
         className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md"
       >
-        <div className="mx-auto grid h-16 max-w-md grid-cols-4">
+        <div className="mx-auto grid h-16 max-w-md grid-cols-5">
           <Tab to="/" icon={Home} label="홈" active={pathname === "/"} />
           <Tab to="/inbox" icon={Inbox} label="수신함" active={pathname.startsWith("/inbox")} badge={inboxCount} />
+          {/* In the bar rather than floating, so it never covers a row's buttons. */}
+          <button
+            type="button"
+            onClick={() => capture.open()}
+            aria-label="새 항목 넣기"
+            className="flex flex-col items-center justify-center gap-1 text-micro font-semibold text-primary"
+          >
+            <span className="grid size-9 place-items-center rounded-full bg-primary text-on-primary shadow-float transition-transform active:scale-95">
+              <Plus className="size-5" strokeWidth={2.4} aria-hidden />
+            </span>
+            넣기
+          </button>
           <Tab to="/search" icon={Search} label="검색" active={pathname.startsWith("/search")} />
           <Tab to="/completed" icon={CircleCheck} label="완료" active={pathname.startsWith("/completed")} />
         </div>
@@ -181,23 +172,3 @@ function Tab({
   );
 }
 
-/**
- * The floating "넣기" button sat on top of the row buttons while scrolling a list.
- * It steps aside while scrolling down and comes back on any scroll up or near the top/bottom.
- */
-function useHideOnScrollDown(): boolean {
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => {
-    let last = window.scrollY;
-    const onScroll = () => {
-      const y = window.scrollY;
-      const nearEdge = y < 80 || window.innerHeight + y >= document.documentElement.scrollHeight - 8;
-      if (nearEdge) setHidden(false);
-      else if (Math.abs(y - last) > 6) setHidden(y > last);
-      last = y;
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  return hidden;
-}
