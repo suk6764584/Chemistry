@@ -167,6 +167,9 @@ export const SAMPLE_NOTE = "예시 항목이에요. AI 분석 없이 미리 채�
 export const AI_OFF_ERROR = "지금은 자동 분석을 사용할 수 없어요. 직접 입력해 주세요.";
 export const AI_OFF_FOUND_ERROR = "자동 분석을 쓸 수 없어 메모에서 날짜만 찾았어요. 맞는지 확인해 주세요.";
 
+/** The AI service itself failed (outage, quota, key) — not a sign the original was unreadable. */
+export const AI_FAILED_ERROR = "자동 분석이 잠시 되지 않았어요. 원본은 저장됐어요. 잠시 후 ‘다시 분석’을 누르거나 직접 입력해 주세요.";
+
 export function isAiOff(item: Pick<Item, "analysis_status" | "analysis_error">): boolean {
   return item.analysis_status === "failed" && (item.analysis_error === AI_OFF_ERROR || item.analysis_error === AI_OFF_FOUND_ERROR);
 }
