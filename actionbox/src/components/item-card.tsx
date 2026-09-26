@@ -9,7 +9,7 @@ import { isStalled } from "@/lib/items/home";
 import { isReminderDue } from "@/lib/items/reminder";
 import { CATEGORY_LABELS, keyDate, type Item } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
-import { cn, daysUntil, formatCompactDate, formatDday, formatShortDate, todayISO } from "@/lib/utils";
+import { cn, daysUntil, formatAmount, formatCompactDate, formatDday, formatShortDate, todayISO } from "@/lib/utils";
 
 function hostname(url: string | null): string | null {
   if (!url) return null;
@@ -42,7 +42,7 @@ function metaLine(item: Item): string | null {
       if (keyDate(item)) parts.push(`${formatCompactDate(keyDate(item))}까지`);
       break;
     case "buy":
-      parts.push(item.amount, hostname(item.source_url));
+      parts.push(formatAmount(item.amount), hostname(item.source_url));
       break;
     case "read":
     case "reference":

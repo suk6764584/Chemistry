@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft, CircleCheck, Home, Inbox, Plus, Search, type LucideIcon } from "lucide-react";
 import { useCapture } from "@/components/add-sheet";
@@ -109,15 +109,25 @@ function TabBar({ signedIn }: { signedIn: boolean }) {
   const items = useItems(signedIn);
   const inboxCount = items.data?.filter((i) => i.status === "inbox").length ?? 0;
   const capture = useCapture();
+  const hidden = useHideOnScrollDown();
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md justify-end px-4 pb-4">
+      <div
+        className={cn(
+          "pointer-events-none fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-md justify-end px-4 pb-4 transition-[transform,opacity] duration-200",
+          hidden && "translate-y-4 opacity-0",
+        )}
+      >
         <button
           type="button"
+          tabIndex={hidden ? -1 : undefined}
           onClick={() => capture.open()}
           aria-label="새 항목 넣기"
-          className="pointer-events-auto inline-flex h-13 items-center gap-1.5 rounded-full bg-primary pr-5 pl-4 text-body font-semibold text-on-primary shadow-float transition-transform active:scale-95"
+          className={cn(
+            "inline-flex h-13 items-center gap-1.5 rounded-full bg-primary pr-5 pl-4 text-body font-semibold text-on-primary shadow-float transition-transform active:scale-95",
+            hidden ? "pointer-events-none" : "pointer-events-auto",
+          )}
         >
           <Plus className="size-5" strokeWidth={2.4} aria-hidden />
           넣기
@@ -169,4 +179,25 @@ function Tab({
       ) : null}
     </Link>
   );
+}
+
+/**
+ * The floating "넣기" button sat on top of the row buttons while scrolling a list.
+ * It steps aside while scrolling down and comes back on any scroll up or near the top/bottom.
+ */
+function useHideOnScrollDown(): boolean {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      const nearEdge = y < 80 || window.innerHeight + y >= document.documentElement.scrollHeight - 8;
+      if (nearEdge) setHidden(false);
+      else if (Math.abs(y - last) > 6) setHidden(y > last);
+      last = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  return hidden;
 }

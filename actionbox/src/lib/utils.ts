@@ -61,7 +61,15 @@ export function formatDateWithWeekday(dateISO: string | null | undefined): strin
   const short = formatShortDate(dateISO);
   if (!short || !dateISO) return null;
   const [y, m, d] = dateISO.split("-").map(Number);
-  return `${short} (${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+  const year = y !== new Date().getFullYear() ? `${y}년 ` : "";
+  return `${year}${short} (${WEEKDAYS[new Date(y, m - 1, d).getDay()]})`;
+}
+
+/** "250000" → "250,000원"; anything that is not a bare number stays as written. */
+export function formatAmount(amount: string | null | undefined): string | null {
+  if (!amount) return null;
+  const t = amount.trim();
+  return /^\d{4,}$/.test(t) ? `${Number(t).toLocaleString("ko-KR")}원` : t;
 }
 
 /** "9월 25일 오후 6:30" in the viewer's time zone. */

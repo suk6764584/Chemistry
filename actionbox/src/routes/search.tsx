@@ -29,7 +29,7 @@ function SearchPage() {
     () => (searching ? filterItems(items.data ?? [], parsed, chip) : []),
     [searching, items.data, parsed, chip],
   );
-  const conditions = describeFilters(chip === "all" ? parsed : { ...parsed, categories: [chip] });
+  const conditions = describeFilters(chip === "all" ? parsed : { ...parsed, categories: [chip], hintWords: [] });
 
   if (!isPending && !user) return <RedirectToSignIn />;
 

@@ -1,4 +1,4 @@
-import { addDaysISO, daysUntil } from "@/lib/utils";
+import { addDaysISO, daysUntil, todayISO } from "@/lib/utils";
 import { keyDate, type Category, type Item } from "./types";
 
 /** Quick choices relative to the item's key date (expiration or event date). */
@@ -10,24 +10,36 @@ export const REMINDER_PRESETS = [
 ] as const;
 
 /**
- * Default policy: coupons 7 days before expiry, events the day before.
- * Everything else (reading, shopping, places, todos) gets no reminder.
+ * Default policy: coupons 7 days before expiry; anything else with a date the day before.
+ * Items without a date get no reminder.
  */
-function defaultReminderOffset(category: Category): number | null {
-  if (category === "coupon") return 7;
-  if (category === "event") return 1;
-  return null;
+function defaultReminderOffset(category: Category): number {
+  return category === "coupon" ? 7 : 1;
+}
+
+/**
+ * The reminder day for a key date: `offset` days before it, moved closer when that day
+ * has already passed (7일 전 → 3일 전 → 하루 전 → 당일). Null when the date itself is past.
+ */
+export function reminderDateFor(key: string, offset: number, today: string = todayISO()): string | null {
+  if (key < today) return null;
+  for (const days of [offset, ...REMINDER_PRESETS.map((p) => p.days).filter((d) => d < offset).reverse()]) {
+    const date = addDaysISO(key, -days);
+    if (date >= today) return date;
+  }
+  return today;
 }
 
 export function defaultReminder(
   category: Category,
   eventDate: string | null,
   expiration: string | null,
+  today?: string,
 ): { reminder_date: string | null; reminder_enabled: boolean } {
-  const offset = defaultReminderOffset(category);
-  const base = category === "coupon" ? expiration : category === "event" ? eventDate : null;
-  if (offset == null || !base) return { reminder_date: null, reminder_enabled: false };
-  return { reminder_date: addDaysISO(base, -offset), reminder_enabled: true };
+  const base = keyDate({ expiration_date: expiration, extracted_date: eventDate });
+  const date = base ? reminderDateFor(base, defaultReminderOffset(category), today) : null;
+  if (!date) return { reminder_date: null, reminder_enabled: false };
+  return { reminder_date: date, reminder_enabled: true };
 }
 
 /** Patch that turns the reminder on with the default offset, or null when the item has no date. */
@@ -36,8 +48,7 @@ export function reminderOnPatch(
 ): { reminder_enabled: true; reminder_date: string } | null {
   const key = keyDate(item);
   if (!key) return null;
-  const offset = defaultReminderOffset(item.category) ?? 1;
-  return { reminder_enabled: true, reminder_date: addDaysISO(key, -offset) };
+  return { reminder_enabled: true, reminder_date: reminderDateFor(key, defaultReminderOffset(item.category)) ?? key };
 }
 
 /** Days between the reminder and the key date, when the reminder matches a preset. */

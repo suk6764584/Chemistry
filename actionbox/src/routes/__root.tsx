@@ -42,9 +42,10 @@ export const Route = createRootRoute({
               <Outlet />
             </CaptureProvider>
             <Toaster
-              position="bottom-center"
-              offset={{ bottom: "calc(env(safe-area-inset-bottom) + 148px)" }}
-              mobileOffset={{ bottom: "calc(env(safe-area-inset-bottom) + 148px)" }}
+              // Top, so toasts never cover a bottom sheet, the bottom buttons or the field just saved.
+              position="top-center"
+              offset={{ top: "calc(env(safe-area-inset-top) + 8px)" }}
+              mobileOffset={{ top: "calc(env(safe-area-inset-top) + 8px)" }}
               toastOptions={{
                 className: "font-sans",
                 style: {

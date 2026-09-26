@@ -190,6 +190,6 @@ export function sampleItems(today: string): SampleInsert[] {
   ];
 }
 
-export function reminderForSample(sample: SampleInsert) {
-  return defaultReminder(sample.category, sample.extracted_date, sample.expiration_date);
+export function reminderForSample(sample: SampleInsert, today?: string) {
+  return defaultReminder(sample.category, sample.extracted_date, sample.expiration_date, today);
 }
