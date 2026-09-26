@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
+import { Link, Navigate, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { ChevronLeft, CircleCheck, Home, Inbox, Plus, Search, type LucideIcon } from "lucide-react";
 import { useCapture } from "@/components/add-sheet";
 import { UserButton } from "@/lib/auth/gates";
-import { useItems } from "@/lib/query";
+import { useAccountStatus, useItems } from "@/lib/query";
 import { useSession } from "@/lib/use-session";
 import { cn } from "@/lib/utils";
 
@@ -34,19 +34,26 @@ export function Logo({ className }: { className?: string }) {
  * Tab screens: brand bar, content, floating "넣기" button and a plain tab bar.
  * Detail screens (`detail`): back button + optional trailing control, no tab bar —
  * the screen brings its own bottom action bar.
+ * Signed-in people without a current agreement are sent to /agree first
+ * (`requireConsent={false}` only for screens reachable from there).
  */
 export function AppShell({
   children,
   detail = false,
   trailing,
+  requireConsent = true,
 }: {
   children: ReactNode;
   detail?: boolean;
   trailing?: ReactNode;
+  requireConsent?: boolean;
 }) {
   const { user, isPending } = useSession();
   const router = useRouter();
   const nav = useNavigate();
+  const account = useAccountStatus(Boolean(user) && requireConsent);
+
+  if (requireConsent && account.data?.needsConsent) return <Navigate to="/agree" />;
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col">

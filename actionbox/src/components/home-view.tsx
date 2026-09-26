@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronDown, ChevronRight, Inbox, ListPlus, Pin, X } from "lucide-react";
 import { CaptureButtons, useCapture } from "@/components/add-sheet";
+import { LegalFooter } from "@/components/legal";
 import { ItemRow } from "@/components/item-card";
 import { Button } from "@/components/ui/button";
 import { EmptyRow, ListGroup, SectionHeader } from "@/components/ui/list";
@@ -194,6 +195,7 @@ export function HomeGuest() {
       <Button size="lg" className="w-full" asChild>
         <Link to="/login">로그인하고 시작하기</Link>
       </Button>
+      <LegalFooter />
     </div>
   );
 }

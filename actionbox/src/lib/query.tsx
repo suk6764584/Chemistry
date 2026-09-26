@@ -18,6 +18,7 @@ import {
   updateItem,
 } from "@/lib/items/server";
 import type { CreateItemInput, Item, ItemPatch } from "@/lib/items/types";
+import { getAccountStatus, getAuthFeatures } from "@/lib/account/server";
 import { isUnauthorized, todayISO } from "@/lib/utils";
 
 export function makeQueryClient() {
@@ -55,6 +56,20 @@ export function useItem(id: string, enabled: boolean) {
     initialData: () => qc.getQueryData<Item[]>(["items"])?.find((i) => i.id === id),
     initialDataUpdatedAt: () => qc.getQueryState(["items"])?.dataUpdatedAt,
   });
+}
+
+/** Whether the signed-in user still has to agree to the current terms. */
+export function useAccountStatus(enabled: boolean) {
+  return useQuery({
+    queryKey: ["account-status"],
+    queryFn: () => getAccountStatus(),
+    enabled,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useAuthFeatures() {
+  return useQuery({ queryKey: ["auth-features"], queryFn: () => getAuthFeatures(), staleTime: Infinity });
 }
 
 export function useItemImage(id: string, hasImage: boolean) {

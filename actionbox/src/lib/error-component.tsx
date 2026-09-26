@@ -23,3 +23,16 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
     </main>
   );
 }
+
+/** Unknown URL — replaces the router's bare English "Not Found". */
+export function AppNotFoundComponent() {
+  return (
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-bg px-6 text-center text-fg">
+      <h1 className="text-title font-semibold">페이지를 찾을 수 없어요</h1>
+      <p className="max-w-md text-small text-muted">주소가 바뀌었거나 삭제된 페이지예요.</p>
+      <a href="/" className="mt-2 inline-flex h-11 items-center rounded-md bg-surface-2 px-4 text-small font-semibold">
+        홈으로
+      </a>
+    </main>
+  );
+}

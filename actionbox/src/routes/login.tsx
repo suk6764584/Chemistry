@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Logo } from "@/components/app-shell";
+import { ConsentChecklist, hasAllConsent, NO_CONSENT } from "@/components/consent";
+import { LegalFooter } from "@/components/legal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useSession } from "@/lib/use-session";
 import { useDraftSnapshot } from "@/lib/items/drafts";
+import { acceptTerms } from "@/lib/account/server";
+import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
@@ -16,6 +20,7 @@ function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"in" | "up">("in");
+  const [consent, setConsent] = useState(NO_CONSENT);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,6 +35,10 @@ function Login() {
       setError("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
+    if (mode === "up" && !hasAllConsent(consent)) {
+      setError("필수 항목에 모두 동의해 주세요.");
+      return;
+    }
     setBusy(true);
     try {
       if (mode === "up") {
@@ -39,6 +48,10 @@ function Login() {
           name: email.split("@")[0] || "사용자",
         });
         if (err) throw new Error(err.message || "가입에 실패했습니다.");
+        // If this doesn't land, the app asks for agreement again on the next screen.
+        await acceptTerms({
+          data: { termsVersion: SITE.termsVersion, privacyVersion: SITE.privacyVersion, ageConfirmed: consent.age },
+        }).catch(() => undefined);
       } else {
         const { error: err } = await authClient.signIn.email({ email: email.trim(), password });
         if (err) throw new Error(err.message || "로그인에 실패했습니다.");
@@ -99,10 +112,17 @@ function Login() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {mode === "up" ? <p className="px-1 text-small text-muted">8자 이상으로 정해 주세요.</p> : null}
+          {mode === "up" ? (
+            <p className="px-1 text-small text-muted">8자 이상으로 정해 주세요.</p>
+          ) : (
+            <Link to="/forgot-password" className="hit-area ml-1 inline-block text-small font-medium text-muted">
+              비밀번호를 잊으셨나요?
+            </Link>
+          )}
         </div>
+        {mode === "up" ? <ConsentChecklist value={consent} onChange={setConsent} /> : null}
         {error ? <p className="px-1 text-small text-danger">{error}</p> : null}
-        <Button type="submit" size="lg" className="w-full" disabled={busy}>
+        <Button type="submit" size="lg" className="w-full" disabled={busy || (mode === "up" && !hasAllConsent(consent))}>
           {busy ? "처리 중…" : mode === "up" ? "가입하고 시작하기" : "로그인"}
         </Button>
         <button
@@ -141,6 +161,8 @@ function Login() {
           ))}
         </div>
       ) : null}
+
+      <LegalFooter className="mt-auto pt-10" />
     </main>
   );
 }

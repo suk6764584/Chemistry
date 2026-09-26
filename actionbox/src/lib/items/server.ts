@@ -248,10 +248,30 @@ export const createItem = createServerFn({ method: "POST" })
     return created;
   });
 
+/** Analyses per user per day (Asia/Seoul) — caps what one account can spend of the xAI quota. */
+function aiDailyLimit(): number {
+  const n = Number.parseInt(process.env.AI_DAILY_LIMIT ?? "", 10);
+  return Number.isFinite(n) && n > 0 ? n : 50;
+}
+
+/** Counts this attempt and throws AI_LIMIT once today's cap is used up. */
+async function takeAiQuota(userId: string): Promise<void> {
+  if (!process.env.XAI_API_KEY) return; // Nothing is spent without a key.
+  const sql = await getSql();
+  const rows = await sql.query<{ count: number }>(
+    `insert into ai_usage (user_id, day, count) values ($1, (now() at time zone 'Asia/Seoul')::date, 1)
+     on conflict (user_id, day) do update set count = ai_usage.count + 1
+     returning count`,
+    [userId],
+  );
+  if (Number(rows[0]?.count ?? 0) > aiDailyLimit()) throw new Error("AI_LIMIT");
+}
+
 async function runAnalysis(userId: string, item: Item, today: string): Promise<void> {
   const sql = await getSql();
   let pageMeta: PageMeta | undefined;
   try {
+    await takeAiQuota(userId);
     const url = item.source_url ? sanitizeHttpUrl(item.source_url) : null;
     if (item.original_type === "url" && url) pageMeta = await fetchPageMeta(url);
 
@@ -330,7 +350,9 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
     const message =
       code === "AI_UNAVAILABLE"
         ? "지금은 자동 분석을 사용할 수 없어요. 직접 입력해 주세요."
-        : "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요.";
+        : code === "AI_LIMIT"
+          ? `오늘 자동 분석 한도(${aiDailyLimit()}회)를 다 썼어요. 내일 다시 분석하거나 직접 입력해 주세요.`
+          : "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요.";
     // The page's own title/description are facts, not AI output — keep them when we have them.
     const pageTitle = pageMeta?.fetched ? pageMeta.title : null;
     const pageSummary = pageMeta?.fetched ? clampSummary(pageMeta.description) : null;

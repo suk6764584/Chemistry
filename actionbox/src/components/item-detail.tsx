@@ -132,6 +132,11 @@ export function ItemDetail({
           }
         />
         <InfoList item={item} onEdit={() => setEditing(true)} />
+        {item.analysis_status === "done" && item.analysis_note !== SAMPLE_NOTE ? (
+          <p className="mt-2 px-1 text-small text-muted">
+            생성형 AI가 원본을 읽고 채운 정보예요. 틀릴 수 있으니 중요한 내용은 원본에서 확인해 주세요.
+          </p>
+        ) : null}
       </section>
 
       {!done && !analyzing ? <ReminderSection item={item} /> : null}

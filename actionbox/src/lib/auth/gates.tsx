@@ -1,5 +1,5 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
-import { Navigate } from "@tanstack/react-router";
+import { Link, Navigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authEnabled, signIn, signOut } from "./client";
 import { hasGateSessionMarker } from "./gate-session-marker";
 import { resolveSignInGateState } from "./sign-in-gate";
@@ -134,6 +134,14 @@ export function UserButton() {
             {user.primaryEmail && user.primaryEmail !== label ? (
               <p className="truncate px-3 pb-2 text-small text-muted">{user.primaryEmail}</p>
             ) : null}
+            <Link
+              to="/settings"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex h-11 w-full items-center rounded-md px-3 text-body font-medium active:bg-surface-2"
+            >
+              설정
+            </Link>
             {canSignOut && (
               <button
                 type="button"
