@@ -1,0 +1,160 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+@import "tailwindcss";
+
+/*
+ * Design system — neutrals first, one accent.
+ * 90% of the screen is gray/white/ink; blue marks only the next action.
+ * Red/amber appear only as small status text (deadline, "check this").
+ */
+@theme {
+  --font-sans: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Noto Sans KR", system-ui, sans-serif;
+
+  /* Neutrals */
+  --color-bg: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-2: #f2f3f5;
+  --color-surface-3: #e6e8eb;
+  --color-line: #e8eaed;
+  --color-fg: #17191c;
+  --color-muted: #555c66;
+  --color-subtle: #7c838e;
+
+  /* The one accent */
+  --color-primary: #2459d9;
+  --color-primary-strong: #1d4bbd;
+  --color-primary-soft: #eaf0fd;
+  --color-on-primary: #ffffff;
+  --color-primary-inverse: #9dbcff;
+
+  /* Status — small text/icons only */
+  --color-danger: #d0263a;
+  --color-danger-soft: #fdeef0;
+  --color-warn: #a4520a;
+  --color-warn-soft: #fff5e8;
+
+  /* Type scale: micro / small / body / title / display */
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1rem;
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.25rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-display: 1.625rem;
+  --text-display--line-height: 2.125rem;
+
+  --tracking-tight: -0.02em;
+
+  /* Radius: nested surfaces step down one level */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-seg: 10px; /* segmented thumb inside a 12px track with 2px padding */
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+
+  /* One shadow recipe for raised surfaces, one for floating controls */
+  --shadow-card: 0 0 0 1px rgb(23 25 28 / 0.04), 0 1px 2px rgb(23 25 28 / 0.04);
+  --shadow-float: 0 4px 16px rgb(23 25 28 / 0.16);
+  --shadow-focus: inset 0 0 0 1.5px var(--color-primary);
+
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    overflow-x: hidden;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    letter-spacing: var(--tracking-tight);
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* A grouped list row: hairline divider inset to the text column, never across the icon. */
+@utility row-divider {
+  position: relative;
+  &:not(:first-child)::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 4.25rem;
+    height: 1px;
+    background: var(--color-line);
+  }
+}
+
+/* Divider for text-only rows (forms, info lists): inset to the left padding. */
+@utility row-divider-text {
+  position: relative;
+  &:not(:first-child)::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 1rem;
+    height: 1px;
+    background: var(--color-line);
+  }
+}
+
+/* Grow a small control's hit area to 44px without changing how it looks. */
+@utility hit-area {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -6px -4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
