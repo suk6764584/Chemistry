@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { Check, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { CategoryButton, CategoryPicker, CategoryTile } from "@/components/category";
 import { Notice } from "@/components/item-card";
@@ -13,7 +13,7 @@ import { isStalled } from "@/lib/items/home";
 import { REMINDER_PRESETS, reminderPreset } from "@/lib/items/reminder";
 import { CATEGORY_LABELS, isAiOff, SAMPLE_NOTE, type Category, type Item } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
-import { cn, formatAmount, formatDateWithWeekday, formatDdayLabel, formatTimestamp } from "@/lib/utils";
+import { addDaysISO, cn, formatAmount, formatDateWithWeekday, formatDdayLabel, formatTimestamp, todayISO } from "@/lib/utils";
 
 const STATUS_LABEL: Record<Item["status"], string> = {
   inbox: "확인 전",
@@ -422,13 +422,61 @@ function formFrom(item: Item): Form {
 
 const fieldInput = "h-13 min-w-0 flex-1 bg-transparent text-body text-fg placeholder:text-subtle focus:outline-none";
 
+type DetailKey = Exclude<keyof Form, "title" | "category" | "summary">;
+
+/** Every detail field, in the order they appear. */
+const DETAIL_KEYS: DetailKey[] = [
+  "extracted_date",
+  "extracted_time",
+  "expiration_date",
+  "location",
+  "address",
+  "amount",
+  "phone",
+  "reservation_number",
+  "coupon_brand",
+  "coupon_product",
+  "source_url",
+];
+
+/** What each kind of item usually needs; the rest wait behind "항목 더 보기". */
+const MAIN_FIELDS: Record<Category, DetailKey[]> = {
+  event: ["extracted_date", "extracted_time", "location", "address"],
+  place: ["location", "address", "phone"],
+  todo: ["extracted_date", "extracted_time"],
+  coupon: ["coupon_brand", "coupon_product", "expiration_date"],
+  buy: ["amount", "source_url"],
+  read: ["source_url"],
+  reference: [],
+  other: ["extracted_date"],
+};
+
+/** One-tap dates for an empty date field. */
+function quickDates(today = todayISO()): { label: string; value: string }[] {
+  const [y, m, d] = today.split("-").map(Number);
+  const weekday = new Date(y, m - 1, d).getDay();
+  // Saturday, or today when it already is the weekend.
+  const weekend = addDaysISO(today, weekday === 0 ? 0 : 6 - weekday);
+  return [
+    { label: "오늘", value: today },
+    { label: "내일", value: addDaysISO(today, 1) },
+    { label: "이번 주말", value: weekend },
+    { label: "다음 주", value: addDaysISO(today, 7) },
+  ];
+}
+
 function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
   const { patch } = useItemMutations();
-  const [form, setForm] = useState<Form>(() => formFrom(item));
+  const [initial] = useState<Form>(() => formFrom(item));
+  const [form, setForm] = useState<Form>(initial);
   const [picking, setPicking] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }));
   const inbox = item.status === "inbox";
-  const showCoupon = form.category === "coupon" || Boolean(item.coupon_brand || item.coupon_product);
+  const main = MAIN_FIELDS[form.category];
+  // A field that holds (or held) a value is never hidden, whatever the category.
+  const extra = DETAIL_KEYS.filter((k) => !main.includes(k) && (showAll || Boolean(initial[k] || form[k])));
+  const hidden = DETAIL_KEYS.length - main.length - extra.length;
 
   const save = () => {
     patch.mutate(
@@ -444,7 +492,7 @@ function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
   };
 
   const text = (key: keyof Form, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <Field label={label}>
+    <Field key={key} label={label}>
       <input className={fieldInput} value={form[key]} onChange={(e) => set(key, e.target.value)} {...props} />
     </Field>
   );
@@ -468,6 +516,54 @@ function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
       <input type="date" className={fieldInput} value={form[key]} onChange={(e) => set(key, e.target.value)} />
     </Field>
   );
+
+  const dateField = (key: "extracted_date" | "expiration_date", label: string) => (
+    // The wrapper carries the row divider; the field inside is its first child.
+    <div key={key} className="row-divider-text">
+      {date(key, label)}
+      {form[key] ? null : (
+        <div className="flex flex-wrap gap-1.5 pr-4 pb-3 pl-24" role="group" aria-label={`${label} 빠르게 고르기`}>
+          {quickDates().map((q) => (
+            <button
+              key={q.label}
+              type="button"
+              onClick={() => set(key, q.value)}
+              className="h-8 rounded-full bg-surface-2 px-3 text-small font-medium text-fg active:bg-surface-3"
+            >
+              {q.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const field = (key: DetailKey) => {
+    switch (key) {
+      case "extracted_date":
+        return dateField("extracted_date", "날짜");
+      case "expiration_date":
+        return dateField("expiration_date", form.category === "coupon" ? "만료일" : "마감일");
+      case "extracted_time":
+        return text("extracted_time", "시간", { type: "time" });
+      case "location":
+        return text("location", "장소", { placeholder: "가게·장소 이름" });
+      case "address":
+        return text("address", "주소");
+      case "amount":
+        return text("amount", "금액", { placeholder: "예) 26,900원" });
+      case "phone":
+        return text("phone", "전화", { type: "tel", inputMode: "tel" });
+      case "reservation_number":
+        return text("reservation_number", "예약번호");
+      case "coupon_brand":
+        return text("coupon_brand", "브랜드");
+      case "coupon_product":
+        return text("coupon_product", "상품");
+      case "source_url":
+        return text("source_url", "링크", { type: "url", inputMode: "url", placeholder: "https://" });
+    }
+  };
 
   return (
     <form
@@ -500,25 +596,20 @@ function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
         </label>
       </FormGroup>
 
-      <FormGroup title="날짜">
-        {date("extracted_date", "날짜")}
-        {text("extracted_time", "시간", { type: "time" })}
-        {date("expiration_date", form.category === "coupon" ? "만료일" : "마감일")}
-      </FormGroup>
+      {main.length ? <FormGroup title={`${CATEGORY_LABELS[form.category]} 정보`}>{main.map(field)}</FormGroup> : null}
 
-      <FormGroup title="장소">
-        {text("location", "장소", { placeholder: "가게·장소 이름" })}
-        {text("address", "주소")}
-      </FormGroup>
+      {extra.length ? <FormGroup title="그 밖의 정보">{extra.map(field)}</FormGroup> : null}
 
-      <FormGroup title="기타">
-        {text("amount", "금액", { placeholder: "예) 26,900원" })}
-        {text("phone", "전화", { type: "tel", inputMode: "tel" })}
-        {text("reservation_number", "예약번호")}
-        {showCoupon ? text("coupon_brand", "브랜드") : null}
-        {showCoupon ? text("coupon_product", "상품") : null}
-        {text("source_url", "링크", { type: "url", inputMode: "url", placeholder: "https://" })}
-      </FormGroup>
+      {hidden > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="flex h-12 w-full items-center justify-center gap-1 rounded-lg text-body font-semibold text-muted active:bg-surface-2"
+        >
+          항목 더 보기
+          <ChevronDown className="size-4" aria-hidden />
+        </button>
+      ) : null}
 
       <CategoryPicker
         open={picking}
