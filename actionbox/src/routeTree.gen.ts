@@ -21,6 +21,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ShareTargetRouteImport } from './routes/share-target'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ItemIdRouteImport } from './routes/item.$id'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -85,6 +86,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareTargetRoute = ShareTargetRouteImport.update({
+  id: '/share-target',
+  path: '/share-target',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/share-target': typeof ShareTargetRoute
   '/terms': typeof TermsRoute
   '/item/$id': typeof ItemIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/share-target': typeof ShareTargetRoute
   '/terms': typeof TermsRoute
   '/item/$id': typeof ItemIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/share-target': typeof ShareTargetRoute
   '/terms': typeof TermsRoute
   '/item/$id': typeof ItemIdRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -168,6 +177,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/search'
     | '/settings'
+    | '/share-target'
     | '/terms'
     | '/item/$id'
     | '/api/auth/$'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/search'
     | '/settings'
+    | '/share-target'
     | '/terms'
     | '/item/$id'
     | '/api/auth/$'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/search'
     | '/settings'
+    | '/share-target'
     | '/terms'
     | '/item/$id'
     | '/api/auth/$'
@@ -220,6 +232,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  ShareTargetRoute: typeof ShareTargetRoute
   TermsRoute: typeof TermsRoute
   ItemIdRoute: typeof ItemIdRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -311,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share-target': {
+      id: '/share-target'
+      path: '/share-target'
+      fullPath: '/share-target'
+      preLoaderRoute: typeof ShareTargetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -348,6 +368,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  ShareTargetRoute: ShareTargetRoute,
   TermsRoute: TermsRoute,
   ItemIdRoute: ItemIdRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
