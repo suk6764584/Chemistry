@@ -90,7 +90,6 @@ function SearchPage() {
           </ListGroup>
           <p className="mt-3 px-1 text-small text-muted">
             문장 속 날짜(‘10월’, ‘다음 주’, ‘지난달’)와 유형(‘쿠폰’, ‘맛집’, ‘행사’)을 필터로 바꾸고, 나머지 단어로 찾아요.
-            뜻이 비슷한 말까지 찾는 AI 검색은 아직 지원하지 않아요.
           </p>
         </section>
       ) : (

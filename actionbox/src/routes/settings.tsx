@@ -63,12 +63,7 @@ function SettingsPage() {
         <ListGroup>
           <LinkRow to="/terms" title="이용약관" />
           <LinkRow to="/privacy" title="개인정보 처리방침" strong />
-          {SITE.supportEmail ? (
-            <a href={`mailto:${SITE.supportEmail}`} className="row-divider-text flex min-h-13 items-center gap-3 px-4 active:bg-surface-2">
-              <span className="flex-1 text-body">문의하기</span>
-              <span className="text-small text-muted">{SITE.supportEmail}</span>
-            </a>
-          ) : null}
+          <LinkRow to="/contact" title="문의하기" />
           <Row title="버전" value={SITE.appVersion} />
         </ListGroup>
 
@@ -110,7 +105,7 @@ function Row({ title, value }: { title: string; value: ReactNode }) {
   );
 }
 
-function LinkRow({ to, title, strong }: { to: "/terms" | "/privacy"; title: string; strong?: boolean }) {
+function LinkRow({ to, title, strong }: { to: "/terms" | "/privacy" | "/contact"; title: string; strong?: boolean }) {
   return (
     <Link to={to} className="row-divider-text flex min-h-13 items-center gap-3 px-4 active:bg-surface-2">
       <span className={strong ? "flex-1 text-body font-semibold" : "flex-1 text-body"}>{title}</span>

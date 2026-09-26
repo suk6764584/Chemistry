@@ -9,6 +9,9 @@
  * Without the last two a real deployment refuses to start (see below) instead
  * of issuing sessions that break across server instances.
  *
+ * Google sign-in turns on when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+ * are set (OAuth client with redirect URI `<BETTER_AUTH_URL>/api/auth/callback/google`).
+ *
  * NEVER import this from client code — it pulls in `pg` and server-only Better
  * Auth internals. The client uses `@/lib/auth/client`; components read the user
  * via `@/lib/auth/use-current-user`; server functions get a verified id via
@@ -83,6 +86,14 @@ const baseURL = explicitBaseURL ?? {
 // Missing entries here surface as FORBIDDEN "Invalid origin".
 const trustedOrigins: string[] = explicitBaseURL ? [explicitBaseURL, ...LOCAL_ORIGINS] : LOCAL_ORIGINS;
 
+const googleClientId = env("GOOGLE_CLIENT_ID");
+const googleClientSecret = env("GOOGLE_CLIENT_SECRET");
+const google =
+  googleClientId && googleClientSecret
+    ? // Always show the account chooser, so switching Google accounts is possible.
+      { google: { clientId: googleClientId, clientSecret: googleClientSecret, prompt: "select_account" as const } }
+    : {};
+
 // Real Postgres when `DATABASE_URL` is set (deployed), else the app's embedded
 // PGLite via a Kysely dialect — so Better Auth persists to the SAME DB as app
 // data. Schema: `migrations/0001_auth.sql`.
@@ -105,6 +116,13 @@ export const auth = betterAuth({
   // (incl. the client's `/get-session`) skip the DB — this shrinks the "loading"
   // window and reduces auth flicker.
   session: { cookieCache: { enabled: true, maxAge: 300 } },
+
+  socialProviders: google,
+
+  // Provider tokens are stored encrypted. Account linking keeps Better Auth's
+  // default: a Google login never attaches to an email/password account whose
+  // address was not verified, so nobody can pre-register someone else's email.
+  account: { encryptOAuthTokens: true },
 
   // Email/password (+ reset by email) — options live in `./email-password`.
   ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true, ...emailAndPasswordOptions } } : {}),

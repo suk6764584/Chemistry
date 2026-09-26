@@ -55,7 +55,7 @@ export const SITE: SiteConfig = {
 
   /** 시행일 = 버전. 문서를 바꾸면 날짜를 올려 주세요. */
   termsVersion: "2026-09-26",
-  privacyVersion: "2026-09-26",
+  privacyVersion: "2026-09-27",
 };
 
 export const MISSING = "출시 전 입력 필요";
