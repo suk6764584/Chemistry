@@ -7,7 +7,7 @@ import { RowActions } from "@/components/item-actions";
 import { ItemImage } from "@/components/item-image";
 import { isStalled } from "@/lib/items/home";
 import { isReminderDue } from "@/lib/items/reminder";
-import { CATEGORY_LABELS, keyDate, type Item } from "@/lib/items/types";
+import { CATEGORY_LABELS, isAiOff, keyDate, type Item } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
 import { cn, daysUntil, formatAmount, formatCompactDate, formatDday, formatShortDate, todayISO } from "@/lib/utils";
 
@@ -74,7 +74,7 @@ function Dot() {
  * One saved item as a list row: type icon, title, the one line of facts that
  * matters, and the next action on the right. Tapping the row opens the detail.
  */
-export function ItemRow({ item }: { item: Item }) {
+export function ItemRow({ item, markUnconfirmed = false }: { item: Item; markUnconfirmed?: boolean }) {
   const [picking, setPicking] = useState(false);
   const { patch } = useItemMutations();
   const analyzingIds = useAnalyzingIds();
@@ -90,17 +90,21 @@ export function ItemRow({ item }: { item: Item }) {
     : stalled
       ? { tone: "warn" as const, text: "분석이 중간에 멈췄어요." }
       : item.analysis_status === "failed"
-        ? { tone: "danger" as const, text: item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요." }
+        ? isAiOff(item)
+          ? null // A normal state, said once above the list — not a red line on every row.
+          : { tone: "danger" as const, text: item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요." }
         : item.analysis_note
           ? { tone: "warn" as const, text: item.analysis_note }
           : null;
 
   return (
-    <article aria-label={title} className="row-divider-text flex min-h-18 items-center gap-3 px-4 py-3">
+    // Wraps: when text is large or the row is narrow, the buttons move under the title
+    // instead of squeezing it.
+    <article aria-label={title} className="row-divider-text flex min-h-18 flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
       <Link to="/item/$id" params={{ id: item.id }} className="absolute inset-0" aria-label={`${title} 자세히`} />
       {inbox && item.has_image ? <ItemImage id={item.id} hasImage alt="" className="size-11 shrink-0 rounded-sm" /> : null}
 
-      <div className="min-w-0 flex-1 py-0.5">
+      <div className="min-w-[10.5rem] flex-1 basis-0 py-0.5">
         <h3 className="line-clamp-2 text-body font-semibold">{title}</h3>
         {analyzing ? (
           <p className="mt-0.5 flex items-center gap-1.5 text-small text-muted" role="status">
@@ -120,6 +124,12 @@ export function ItemRow({ item }: { item: Item }) {
               </>
             ) : (
               <>
+                {inbox && markUnconfirmed ? (
+                  <>
+                    <span className="font-semibold text-warn">확인 전</span>
+                    <Dot />
+                  </>
+                ) : null}
                 {inbox ? (
                   <span className="relative z-10">
                     <CategoryButton category={item.category} onClick={() => setPicking(true)} />

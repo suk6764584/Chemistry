@@ -163,6 +163,14 @@ export function isActionCode(value: string): value is ActionCode {
 /** Note shown on the example items so they are never mistaken for AI output. */
 export const SAMPLE_NOTE = "예시 항목이에요. AI 분석 없이 미리 채워 둔 값입니다.";
 
+/** Why analysis did not run when no AI is configured — a normal state, not a failure. */
+export const AI_OFF_ERROR = "지금은 자동 분석을 사용할 수 없어요. 직접 입력해 주세요.";
+export const AI_OFF_FOUND_ERROR = "자동 분석을 쓸 수 없어 메모에서 날짜만 찾았어요. 맞는지 확인해 주세요.";
+
+export function isAiOff(item: Pick<Item, "analysis_status" | "analysis_error">): boolean {
+  return item.analysis_status === "failed" && (item.analysis_error === AI_OFF_ERROR || item.analysis_error === AI_OFF_FOUND_ERROR);
+}
+
 /** The date that drives D-day: expiration for deadlines, otherwise the event date. */
 export function keyDate(item: Pick<Item, "expiration_date" | "extracted_date">): string | null {
   return item.expiration_date || item.extracted_date || null;

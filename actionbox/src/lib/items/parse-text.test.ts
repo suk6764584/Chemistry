@@ -14,6 +14,12 @@ test("dates", () => {
   assert.equal(parseDate("내일 저녁 8시", today), "2026-09-28");
   assert.equal(parseDate("모레 병원", today), "2026-09-29");
   assert.equal(parseDate("우유 사기", today), null);
+  // 2026-09-27 is a Sunday.
+  assert.equal(parseDate("금요일 우유 사기", today), "2026-10-02");
+  assert.equal(parseDate("일요일 대청소", today), "2026-09-27");
+  assert.equal(parseDate("다음주 화요일 회의", today), "2026-09-29");
+  assert.equal(parseDate("다음 주 일요일", today), "2026-10-04");
+  assert.equal(parseDate("월요일", "2026-09-30"), "2026-10-05");
   assert.equal(parseDate("2월 30일", today), null);
 });
 

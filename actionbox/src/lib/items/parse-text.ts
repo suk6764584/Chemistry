@@ -39,6 +39,18 @@ export function parseDate(text: string, today: string = todayISO()): string | nu
   if (m) return withYear(Number(m[1]), Number(m[2]), today);
   m = text.match(/(?<![\d.])(\d{1,2})[./](\d{1,2})(?![\d./])/);
   if (m) return withYear(Number(m[1]), Number(m[2]), today);
+  const wd = text.match(/(이번\s*주|다음\s*주|담주)?\s*([월화수목금토일])요일/);
+  if (wd) {
+    // "금요일" is the coming one (today counts); "다음주 금요일" is in next week (weeks start Monday).
+    const [y, mo, d] = today.split("-").map(Number);
+    const todayDow = new Date(y, mo - 1, d).getDay();
+    const target = "일월화수목금토".indexOf(wd[2]);
+    if (wd[1] && /다음|담/.test(wd[1])) {
+      const mondayOffset = (todayDow + 6) % 7;
+      return addDaysISO(today, 7 - mondayOffset + ((target + 6) % 7));
+    }
+    return addDaysISO(today, (target - todayDow + 7) % 7);
+  }
   if (/모레/.test(text)) return addDaysISO(today, 2);
   if (/내일/.test(text)) return addDaysISO(today, 1);
   if (/오늘/.test(text)) return today;

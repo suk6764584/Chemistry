@@ -18,12 +18,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ReminderSheet } from "@/components/reminder-sheet";
 import { Sheet, SheetRow } from "@/components/ui/sheet";
 import { isStalled } from "@/lib/items/home";
 import { buildIcs, downloadIcs, googleCalendarUrl } from "@/lib/items/ics";
 import { googleMapUrl, mapSearchQuery, naverMapUrl } from "@/lib/items/maps";
 import { reminderOnPatch } from "@/lib/items/reminder";
-import { keyDate, type ActionCode, type Category, type Item, type ItemPatch } from "@/lib/items/types";
+import { isAiOff, keyDate, type ActionCode, type Category, type Item, type ItemPatch } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
 import { cn, daysUntil, formatShortDate } from "@/lib/utils";
 
@@ -69,6 +70,7 @@ export function useItemActions(item: Item) {
   const analyzingIds = useAnalyzingIds();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
 
   const date = keyDate(item);
   const overdue = (daysUntil(date) ?? 0) < 0;
@@ -113,7 +115,8 @@ export function useItemActions(item: Item) {
             short: "알림",
             icon: BellRing,
             active: true,
-            run: () => update({ reminder_enabled: false }, "알림을 껐어요", { reminder_enabled: true }),
+            // Opens the choices instead of switching off on a single tap.
+            run: () => setReminderOpen(true),
           };
         }
         return {
@@ -235,7 +238,8 @@ export function useItemActions(item: Item) {
     else if (item.status === "inbox") {
       if (stalled) codes = ["reanalyze", "edit"];
       else if (item.analysis_status === "pending") codes = [];
-      else if (item.analysis_status === "failed") codes = ["edit", "reanalyze"];
+      // The original is saved either way, so "확인" always comes first.
+      else if (item.analysis_status === "failed") codes = isAiOff(item) ? ["confirm", "edit"] : ["confirm", "reanalyze"];
       else codes = ["confirm", "edit"];
     } else if (overdue && (item.category === "event" || item.category === "coupon")) codes = ["complete", "archive"];
     else codes = ROW_ACTIONS[item.category];
@@ -260,12 +264,24 @@ export function useItemActions(item: Item) {
         date,
         time: item.extracted_date ? item.extracted_time : null,
         location: [item.location, item.address].filter(Boolean).join(", ") || null,
-        description: item.summary,
+        // Everything needed on the day, without opening the app.
+        description:
+          [
+            item.summary,
+            item.reservation_number ? `예약번호 ${item.reservation_number}` : null,
+            item.phone ? `전화 ${item.phone}` : null,
+            item.original_type === "text" && item.original_content !== item.title ? item.original_content : null,
+            item.source_url,
+          ]
+            .filter(Boolean)
+            .join("\n") || null,
+        reminderDate: item.reminder_enabled ? item.reminder_date : null,
       }
     : null;
 
   const sheets = (
     <>
+      <ReminderSheet item={item} open={reminderOpen} onOpenChange={setReminderOpen} />
       <Sheet
         open={calendarOpen}
         onOpenChange={setCalendarOpen}
@@ -275,11 +291,12 @@ export function useItemActions(item: Item) {
         <div className="mt-3 -mx-2">
           <SheetRow
             title="휴대폰 기본 캘린더"
-            hint=".ics 파일을 받아 캘린더 앱으로 엽니다"
+            hint="일정 파일을 받아 캘린더 앱에 넣어요 · 알림도 함께 들어가요"
             trailing={<ChevronRight className="size-4 text-subtle" aria-hidden />}
             onClick={() => {
               if (!calendarEvent) return;
-              downloadIcs(title, buildIcs(calendarEvent));
+              // ASCII name: some browsers drop a Korean file name and save it as "download".
+              downloadIcs(`actionbox-${calendarEvent.date}`, buildIcs(calendarEvent));
               setCalendarOpen(false);
             }}
           />
@@ -339,7 +356,7 @@ function ActionPill({ action }: { action: ActionDef }) {
       }}
       aria-pressed={action.active}
       className={cn(
-        "hit-area h-8 shrink-0 rounded-full px-3.5 text-small font-semibold whitespace-nowrap transition-colors",
+        "hit-area h-10 shrink-0 rounded-full px-4 text-small font-semibold whitespace-nowrap transition-colors",
         action.active ? "bg-primary text-on-primary" : "bg-surface-2 text-primary active:bg-surface-3",
       )}
     >
@@ -360,11 +377,15 @@ function ActionIconButton({ action }: { action: ActionDef }) {
       aria-label={action.label}
       aria-pressed={action.active}
       className={cn(
-        "grid size-10 shrink-0 place-items-center rounded-full transition-colors active:bg-surface-2",
-        action.active ? "text-primary" : "text-subtle",
+        "flex min-h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 transition-colors active:bg-surface-2",
+        action.active ? "text-primary" : "text-muted",
       )}
     >
       <Icon className="size-5" strokeWidth={action.active ? 2.2 : 1.9} aria-hidden />
+      {/* A word under the icon: a bare sun or bell left people guessing. */}
+      <span className="text-micro leading-none font-medium whitespace-nowrap" aria-hidden>
+        {action.short}
+      </span>
     </button>
   );
 }
@@ -374,7 +395,7 @@ export function RowActions({ item }: { item: Item }) {
   const { primary, secondary } = rowActions();
   if (!primary) return null;
   return (
-    <div className="relative z-10 flex shrink-0 items-center gap-0.5">
+    <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1">
       {secondary ? <ActionIconButton action={secondary} /> : null}
       <ActionPill action={primary} />
       {sheets}
