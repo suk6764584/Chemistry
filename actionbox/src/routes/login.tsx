@@ -20,6 +20,19 @@ export const Route = createFileRoute("/login")({
   component: Login,
 });
 
+/** The auth server answers in English; show people Korean. */
+function authErrorText(err: { code?: string; message?: string }, fallback: string): string {
+  const known: Record<string, string> = {
+    PASSWORD_TOO_SHORT: "비밀번호는 8자 이상으로 정해 주세요.",
+    PASSWORD_TOO_LONG: "비밀번호가 너무 길어요.",
+    INVALID_EMAIL: "이메일 주소를 확인해 주세요.",
+    INVALID_EMAIL_OR_PASSWORD: "이메일 또는 비밀번호가 맞지 않아요.",
+    USER_ALREADY_EXISTS: "이미 가입된 이메일이에요. 로그인해 주세요.",
+    USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "이미 가입된 이메일이에요. 로그인해 주세요.",
+  };
+  return (err.code && known[err.code]) || fallback;
+}
+
 function Login() {
   const { next } = Route.useSearch();
   const { user, isPending } = useSession();
@@ -42,6 +55,10 @@ function Login() {
       setError("이메일과 비밀번호를 입력해 주세요.");
       return;
     }
+    if (mode === "up" && password.length < 8) {
+      setError("비밀번호는 8자 이상으로 정해 주세요.");
+      return;
+    }
     if (mode === "up" && !hasAllConsent(consent)) {
       setError("필수 항목에 모두 동의해 주세요.");
       return;
@@ -54,14 +71,14 @@ function Login() {
           password,
           name: email.split("@")[0] || "사용자",
         });
-        if (err) throw new Error(err.message || "가입에 실패했습니다.");
+        if (err) throw new Error(authErrorText(err, "가입에 실패했습니다."));
         // If this doesn't land, the app asks for agreement again on the next screen.
         await acceptTerms({
           data: { termsVersion: SITE.termsVersion, privacyVersion: SITE.privacyVersion, ageConfirmed: consent.age },
         }).catch(() => undefined);
       } else {
         const { error: err } = await authClient.signIn.email({ email: email.trim(), password });
-        if (err) throw new Error(err.message || "로그인에 실패했습니다.");
+        if (err) throw new Error(authErrorText(err, "로그인에 실패했습니다."));
       }
       window.location.href = next ?? "/";
     } catch (e) {
@@ -129,7 +146,7 @@ function Login() {
         </div>
         {mode === "up" ? <ConsentChecklist value={consent} onChange={setConsent} /> : null}
         {error ? <p className="px-1 text-small text-danger">{error}</p> : null}
-        <Button type="submit" size="lg" className="w-full" disabled={busy || (mode === "up" && !hasAllConsent(consent))}>
+        <Button type="submit" size="lg" className="w-full" disabled={busy}>
           {busy ? "처리 중…" : mode === "up" ? "가입하고 시작하기" : "로그인"}
         </Button>
         <button

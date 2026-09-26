@@ -77,6 +77,8 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
   const [image, setImage] = useState<Extract<Draft, { kind: "image" }> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A save that reached the server and failed — only then does the button read "다시 시도".
+  const [failed, setFailed] = useState(false);
   // One id per thing being entered, reused on retry so it is never saved twice.
   const draftId = useRef<string>(uuid());
 
@@ -86,6 +88,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
     setText("");
     setImage(null);
     setError(null);
+    setFailed(false);
     draftId.current = uuid();
   }, []);
 
@@ -100,6 +103,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
     saveDraft(draft);
     setBusy(true);
     setError(null);
+    setFailed(false);
     try {
       const item = await create.mutateAsync(toInput(draft));
       clearDraft(draft.id);
@@ -113,6 +117,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         return;
       }
       setError(errorMessage(e));
+      setFailed(true);
     } finally {
       setBusy(false);
     }
@@ -141,8 +146,12 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
   };
 
   const submitUrl = () => {
-    if (!url.trim()) return setError("링크를 붙여넣어 주세요.");
-    void save({ id: draftId.current, kind: "url", value: url.trim() });
+    let value = url.trim();
+    if (!value) return setError("링크를 붙여넣어 주세요.");
+    // "naver.com/…" without a scheme is still clearly a link.
+    if (!/^[a-z][a-z\d+.-]*:/i.test(value) && /^[^\s/]+\.[a-z]{2,}(\/\S*)?$/i.test(value)) value = `https://${value}`;
+    if (!/^https?:\/\/\S+$/i.test(value)) return setError("http:// 또는 https://로 시작하는 링크를 넣어 주세요.");
+    void save({ id: draftId.current, kind: "url", value });
   };
 
   const submitText = () => {
@@ -237,6 +246,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
         ) : mode === "url" ? (
           <form
             className="mt-5 space-y-3"
+            noValidate
             onSubmit={(e) => {
               e.preventDefault();
               submitUrl();
@@ -253,6 +263,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
                 value={url}
                 onChange={(e) => {
                   setUrl(e.target.value);
+                  setError(null);
                   draftId.current = uuid();
                 }}
               />
@@ -267,7 +278,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
             {error ? <p className="px-1 text-small text-danger">{error}</p> : null}
             <Button type="submit" size="lg" className="w-full" disabled={busy}>
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-              {busy ? "저장 중…" : error ? "다시 시도" : "저장"}
+              {busy ? "저장 중…" : failed ? "다시 시도" : "저장"}
             </Button>
           </form>
         ) : mode === "text" ? (
@@ -285,13 +296,14 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
               value={text}
               onChange={(e) => {
                 setText(e.target.value);
+                setError(null);
                 draftId.current = uuid();
               }}
             />
             {error ? <p className="px-1 text-small text-danger">{error}</p> : null}
             <Button type="submit" size="lg" className="w-full" disabled={busy}>
               {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-              {busy ? "저장 중…" : error ? "다시 시도" : "저장"}
+              {busy ? "저장 중…" : failed ? "다시 시도" : "저장"}
             </Button>
           </form>
         ) : (

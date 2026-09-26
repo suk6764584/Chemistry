@@ -89,35 +89,41 @@ function Headline() {
 }
 
 function FirstRun() {
-  const { seed } = useItemMutations();
   return (
     <div className="space-y-8">
       <div>
         <Headline />
         <CaptureButtons />
       </div>
-      <section aria-label="예시">
-        <SectionHeader title="먼저 둘러보기" />
-        <ListGroup>
-          <button
-            type="button"
-            disabled={seed.isPending}
-            onClick={() => seed.mutate()}
-            className="flex min-h-18 w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2 disabled:opacity-60"
-          >
-            <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-surface-2" aria-hidden>
-              <ListPlus className="size-5" strokeWidth={1.9} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-body font-semibold">{seed.isPending ? "넣는 중…" : "예시 넣어보기"}</span>
-              <span className="block text-small text-muted">쿠폰·행사·맛집 등 6개. 하나씩 지울 수 있어요.</span>
-            </span>
-            <ChevronRight className="size-5 text-subtle" aria-hidden />
-          </button>
-        </ListGroup>
-        {seed.isError ? <p className="mt-2 px-1 text-small text-danger">예시를 넣지 못했어요. 다시 시도해 주세요.</p> : null}
-      </section>
+      <SeedSection />
     </div>
+  );
+}
+
+function SeedSection() {
+  const { seed } = useItemMutations();
+  return (
+    <section aria-label="예시">
+      <SectionHeader title="먼저 둘러보기" />
+      <ListGroup>
+        <button
+          type="button"
+          disabled={seed.isPending}
+          onClick={() => seed.mutate()}
+          className="flex min-h-18 w-full items-center gap-3 px-4 py-3 text-left active:bg-surface-2 disabled:opacity-60"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-sm bg-surface-2" aria-hidden>
+            <ListPlus className="size-5" strokeWidth={1.9} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-body font-semibold">{seed.isPending ? "넣는 중…" : "예시 넣어보기"}</span>
+            <span className="block text-small text-muted">쿠폰·행사·맛집 등 6개. 하나씩 지울 수 있어요.</span>
+          </span>
+          <ChevronRight className="size-5 text-subtle" aria-hidden />
+        </button>
+      </ListGroup>
+      {seed.isError ? <p className="mt-2 px-1 text-small text-danger">예시를 넣지 못했어요. 다시 시도해 주세요.</p> : null}
+    </section>
   );
 }
 
@@ -151,9 +157,22 @@ export function HomeSignedIn({ items, loading }: { items: Item[]; loading: boole
               </ListGroup>
             ) : null}
           </div>
-          <Section title="지금 할 것" items={grouped.now} empty="지금 급한 건 없어요." />
-          <Section title="곧 만료" items={grouped.expiring} empty="날짜가 있는 항목이 없어요." />
-          <Section title="나중에" items={grouped.later} empty="나중에 볼 항목이 없어요." />
+          {grouped.now.length + grouped.expiring.length + grouped.later.length === 0 ? (
+            <>
+              <div>
+                <p className="px-1 pb-3 text-body text-muted">넣은 항목을 확인하면 여기에 날짜순으로 정리돼요. 더 넣어 보세요.</p>
+                <CaptureButtons />
+              </div>
+              <SeedSection />
+            </>
+          ) : (
+            <>
+              <Section title="지금 할 것" items={grouped.now} empty="지금 급한 건 없어요." />
+              {/* Only sections with something in them: an empty "곧 만료" read as "no dates" while dated items sat above. */}
+              {grouped.expiring.length ? <Section title="다가오는 날짜" items={grouped.expiring} empty="" /> : null}
+              {grouped.later.length ? <Section title="나중에" items={grouped.later} empty="" /> : null}
+            </>
+          )}
         </>
       )}
     </div>

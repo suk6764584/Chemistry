@@ -15,6 +15,8 @@ export type SearchFilters = {
   dateFrom: string | null;
   dateTo: string | null;
   dateField: DateField;
+  /** The type words themselves ("카페"): an item whose text says it counts too, whatever its type. */
+  hintWords: string[];
 };
 
 const CATEGORY_HINTS: { re: RegExp; categories: Category[] }[] = [
@@ -56,9 +58,11 @@ export function parseSearchQuery(raw: string, now = new Date()): SearchFilters {
   else if (/행사|일정|예약|공연|전시/.test(text)) dateField = "event";
 
   const categories = new Set<Category>();
+  const hintWords: string[] = [];
   for (const hint of CATEGORY_HINTS) {
     if (hint.re.test(text)) {
       hint.categories.forEach((c) => categories.add(c));
+      hintWords.push(...(text.match(hint.re) ?? []).map((w) => w.replace(/\s/g, "")));
       text = text.replace(hint.re, " ");
     }
     hint.re.lastIndex = 0;
@@ -97,7 +101,7 @@ export function parseSearchQuery(raw: string, now = new Date()): SearchFilters {
     .map((t) => t.trim().toLowerCase())
     .filter((t) => t && !STOPWORDS.has(t));
 
-  return { terms, categories: [...categories], dateFrom, dateTo, dateField };
+  return { terms, categories: [...categories], dateFrom, dateTo, dateField, hintWords };
 }
 
 function inRange(date: string | null, from: string | null, to: string | null): boolean {
@@ -141,7 +145,10 @@ export function filterItems(items: Item[], filters: SearchFilters, categoryOverr
 
   return items
     .filter((item) => {
-      if (categories.length && !categories.includes(item.category)) return false;
+      if (categories.length && !categories.includes(item.category)) {
+        const hay = categoryOverride === "all" ? haystack(item).replace(/\s/g, "") : "";
+        if (!filters.hintWords.some((w) => hay.includes(w))) return false;
+      }
       if (hasDate) {
         const created = todayISO(new Date(item.created_at));
         const { dateFrom: from, dateTo: to } = filters;
@@ -177,7 +184,8 @@ const DATE_FIELD_LABELS: Record<DateField, string> = {
 export function describeFilters(filters: SearchFilters): { key: string; label: string }[] {
   const chips: { key: string; label: string }[] = [];
   if (filters.categories.length) {
-    chips.push({ key: "category", label: `유형 ${filters.categories.map((c) => CATEGORY_LABELS[c]).join("·")}` });
+    const words = filters.hintWords.length ? ` 또는 '${[...new Set(filters.hintWords)].join("·")}' 포함` : "";
+    chips.push({ key: "category", label: `유형 ${filters.categories.map((c) => CATEGORY_LABELS[c]).join("·")}${words}` });
   }
   if (filters.dateFrom || filters.dateTo) {
     const from = formatShortDate(filters.dateFrom);

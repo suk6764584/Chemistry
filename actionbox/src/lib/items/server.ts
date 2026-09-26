@@ -12,6 +12,7 @@ import {
   sanitizeHttpUrl,
   type PageMeta,
 } from "./ai";
+import { parseTextFacts } from "./parse-text";
 import { defaultReminder } from "./reminder";
 import { reminderForSample, sampleItems } from "./samples";
 import {
@@ -161,8 +162,12 @@ function fallbackTitle(input: { original_type: OriginalType; original_content: s
     }
   }
   if (input.original_content) {
-    const line = input.original_content.trim().split("\n")[0] ?? "";
-    return line.slice(0, 40) || "제목 없음";
+    const line = (input.original_content.trim().split("\n")[0] ?? "").trim();
+    if (line.length <= 40) return line || "제목 없음";
+    // Cut at a word boundary so a title never ends mid-word ("A1234, 8").
+    const cut = line.slice(0, 40);
+    const space = cut.lastIndexOf(" ");
+    return `${space > 15 ? cut.slice(0, space) : cut}…`;
   }
   if (input.original_type === "screenshot") return "스크린샷";
   if (input.original_type === "image") return "사진";
@@ -303,7 +308,7 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
       item.title ||
       fallbackTitle(item);
     const summary = pageRead === false ? null : ex.summary;
-    const reminder = defaultReminder(ex.category, ex.date, ex.expiration_date);
+    const reminder = defaultReminder(ex.category, ex.date, ex.expiration_date, today);
 
     await sql.query(
       `update items set
@@ -356,13 +361,35 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
     // The page's own title/description are facts, not AI output — keep them when we have them.
     const pageTitle = pageMeta?.fetched ? pageMeta.title : null;
     const pageSummary = pageMeta?.fetched ? clampSummary(pageMeta.description) : null;
+    // Without AI, still pick up plain date/time/amount phrases ("10월 2일 오후 3시", "25만원")
+    // so the item gets a D-day and a reminder; empty fields only, the user confirms them.
+    const facts = item.original_type === "text" ? parseTextFacts(item.original_content, today) : parseTextFacts(null);
+    const reminder = item.reminder_date
+      ? { reminder_date: null, reminder_enabled: false }
+      : defaultReminder(item.category, item.extracted_date ?? facts.date, item.expiration_date, today);
     await sql.query(
       `update items set
         analysis_status = 'failed', analysis_error = $3, analysis_note = null,
         title = coalesce($4, title), summary = coalesce(summary, $5),
+        extracted_date = coalesce(extracted_date, $6::date),
+        extracted_time = coalesce(extracted_time, $7),
+        amount = coalesce(amount, $8),
+        reminder_enabled = case when reminder_date is null then $10 else reminder_enabled end,
+        reminder_date = coalesce(reminder_date, $9::date),
         updated_at = now()
       where id = $1 and user_id = $2`,
-      [item.id, userId, message, pageTitle, pageSummary],
+      [
+        item.id,
+        userId,
+        facts.date && code === "AI_UNAVAILABLE" ? "자동 분석을 쓸 수 없어 메모에서 날짜만 찾았어요. 맞는지 확인해 주세요." : message,
+        pageTitle,
+        pageSummary,
+        facts.date,
+        facts.time,
+        facts.amount,
+        reminder.reminder_date,
+        reminder.reminder_enabled,
+      ],
     );
   }
 }
@@ -442,13 +469,14 @@ export const updateItem = createServerFn({ method: "POST" })
       extracted_date !== current.extracted_date ||
       expiration_date !== current.expiration_date;
     if (!reminderTouched && basisChanged) {
-      const oldDefault = defaultReminder(current.category, current.extracted_date, current.expiration_date);
+      const today = todayOr(null);
+      const oldDefault = defaultReminder(current.category, current.extracted_date, current.expiration_date, today);
       const wasAutomatic =
         (!current.reminder_enabled && !current.reminder_date) ||
         (current.reminder_enabled === oldDefault.reminder_enabled &&
           current.reminder_date === oldDefault.reminder_date);
       if (wasAutomatic) {
-        const next = defaultReminder(category, extracted_date, expiration_date);
+        const next = defaultReminder(category, extracted_date, expiration_date, today);
         reminder_date = next.reminder_date;
         reminder_enabled = next.reminder_enabled;
       }
@@ -506,21 +534,21 @@ export const deleteItem = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Adds the six example items, only into an empty account. */
+/** Adds the six example items, only while the home has nothing to show (no active items). */
 export const seedSamples = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { today?: string }) => ({ today: todayOr(input?.today) }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const existing = await sql.query<{ n: number }>(
-      `select count(*)::int as n from items where user_id = $1`,
+      `select count(*)::int as n from items where user_id = $1 and status = 'active'`,
       [context.userId],
     );
     if ((existing[0]?.n ?? 0) > 0) return listRows(context.userId);
 
     const samples = sampleItems(data.today);
     for (const [index, sample] of samples.entries()) {
-      const reminder = reminderForSample(sample);
+      const reminder = reminderForSample(sample, data.today);
       await sql.query(
         `insert into items (
           id, user_id, original_type, original_content, image_data, image_mime, source_url,

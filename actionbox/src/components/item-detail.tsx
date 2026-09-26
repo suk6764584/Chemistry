@@ -13,7 +13,7 @@ import { isStalled } from "@/lib/items/home";
 import { REMINDER_PRESETS, reminderPreset } from "@/lib/items/reminder";
 import { CATEGORY_LABELS, keyDate, SAMPLE_NOTE, type Category, type Item, type ItemPatch } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
-import { addDaysISO, cn, formatDateWithWeekday, formatDday, formatTimestamp } from "@/lib/utils";
+import { addDaysISO, cn, formatAmount, formatDateWithWeekday, formatDday, formatTimestamp, todayISO } from "@/lib/utils";
 
 const STATUS_LABEL: Record<Item["status"], string> = {
   inbox: "확인 필요",
@@ -109,7 +109,7 @@ export function ItemDetail({
       ) : stalled ? (
         <Notice tone="warn">분석이 중간에 멈췄어요. 아래 ‘다시 분석’을 눌러 주세요.</Notice>
       ) : inbox && item.analysis_status === "failed" ? (
-        <Notice tone="danger">{item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요."}</Notice>
+        <Notice tone={keyDate(item) ? "warn" : "danger"}>{item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요."}</Notice>
       ) : item.analysis_note ? (
         <Notice tone={item.analysis_note === SAMPLE_NOTE ? "info" : "warn"}>{item.analysis_note}</Notice>
       ) : null}
@@ -202,7 +202,8 @@ export function ItemDetail({
 
       {analyzing ? null : inbox ? (
         <BottomBar>
-          {item.analysis_status === "failed" || stalled ? (
+          {/* A failed analysis that still found a date only needs a look, like a finished one. */}
+          {(item.analysis_status === "failed" && !keyDate(item)) || stalled ? (
             <>
               <Button
                 variant="secondary"
@@ -325,7 +326,7 @@ function InfoList({ item, onEdit }: { item: Item; onEdit: () => void }) {
   if (item.coupon_product) rows.push({ label: "상품", value: item.coupon_product });
   if (item.location) rows.push({ label: "장소", value: item.location });
   if (item.address) rows.push({ label: "주소", value: item.address });
-  if (item.amount) rows.push({ label: "금액", value: item.amount });
+  if (item.amount) rows.push({ label: "금액", value: formatAmount(item.amount) });
   if (item.phone) {
     rows.push({
       label: "전화",
@@ -430,7 +431,7 @@ function ReminderSection({ item }: { item: Item }) {
             onClick={() => set({ reminder_enabled: false })}
           />
           {key
-            ? REMINDER_PRESETS.map((p) => (
+            ? REMINDER_PRESETS.filter((p) => addDaysISO(key, -p.days) >= todayISO()).map((p) => (
                 <SheetRow
                   key={p.days}
                   role="radio"

@@ -81,6 +81,8 @@ export function useItemActions(item: Item) {
       {
         onSuccess: () =>
           toast(message, {
+            // Long enough to read the message and reach "되돌리기".
+            duration: undo ? 8000 : undefined,
             action: undo
               ? { label: "되돌리기", onClick: () => patch.mutate({ id: item.id, patch: undo }) }
               : undefined,
@@ -246,7 +248,10 @@ export function useItemActions(item: Item) {
     if (item.status === "completed" || item.status === "archived") return [];
     // The type's own next step leads (it becomes the bottom button); the AI's picks follow.
     const lead: Code[] = overdue && (item.category === "event" || item.category === "coupon") ? ["complete"] : ROW_ACTIONS[item.category].slice(0, 1);
-    return pick([...lead, ...item.recommended_actions, ...ROW_ACTIONS[item.category], "call", "archive"], 5);
+    // "complete" always makes the cut, so a finished event or a visited place can be closed out.
+    const rest = pick([...item.recommended_actions, ...ROW_ACTIONS[item.category], "call"], 5).map((a) => a.key);
+    const withComplete = rest.includes("complete") ? rest : [...rest.slice(0, 3), "complete" as const];
+    return pick([...lead, ...withComplete, "archive"], 5);
   };
 
   const calendarEvent = date
@@ -383,7 +388,8 @@ export function ActionTiles({ actions }: { actions: ActionDef[] }) {
   return (
     <div className="grid auto-cols-fr grid-flow-col gap-2">
       {actions.map((a) => {
-        const Icon = a.active ? Check : a.icon;
+        // The reminder keeps its bell: a check mark there read as "완료".
+        const Icon = a.active && a.key !== "remind" ? Check : a.icon;
         return (
           <button
             key={a.key}
