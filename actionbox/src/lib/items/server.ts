@@ -16,6 +16,7 @@ import { parseTextFacts } from "./parse-text";
 import { defaultReminder } from "./reminder";
 import { reminderForSample, sampleItems } from "./samples";
 import {
+  AI_FAILED_ERROR,
   AI_OFF_ERROR,
   AI_OFF_FOUND_ERROR,
   isActionCode,
@@ -367,7 +368,9 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
         ? AI_OFF_ERROR
         : code === "AI_LIMIT"
           ? `오늘 자동 분석 한도(${aiDailyLimit()}회)를 다 썼어요. 내일 다시 분석하거나 직접 입력해 주세요.`
-          : "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요.";
+          : code === "AI_BAD_RESPONSE"
+            ? "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요."
+            : AI_FAILED_ERROR;
     // The page's own title/description are facts, not AI output — keep them when we have them.
     const pageTitle = pageMeta?.fetched ? pageMeta.title : null;
     const pageSummary = pageMeta?.fetched ? clampSummary(pageMeta.description) : null;

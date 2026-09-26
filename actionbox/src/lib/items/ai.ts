@@ -248,7 +248,16 @@ async function callAi(messages: { role: "system" | "user"; content: string | Cha
         messages,
       }),
     });
-    if (!res.ok) throw new Error(`AI_HTTP_${res.status}`);
+    if (!res.ok) {
+      // OpenAI's error code says why (insufficient_quota, invalid_api_key, …) and never
+      // carries user content, so it is safe to log.
+      const reason = await res
+        .json()
+        .then((b: { error?: { code?: unknown; type?: unknown } }) => b.error?.code ?? b.error?.type)
+        .catch(() => null);
+      const tag = typeof reason === "string" ? reason.replace(/[^\w.-]/g, "").slice(0, 40) : "";
+      throw new Error(`AI_HTTP_${res.status}${tag ? `:${tag}` : ""}`);
+    }
     const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     return body.choices?.[0]?.message?.content ?? "";
   } finally {
