@@ -1,22 +1,22 @@
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Check, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { CategoryButton, CategoryPicker, CategoryTile } from "@/components/category";
 import { Notice } from "@/components/item-card";
 import { ActionTiles, useItemActions } from "@/components/item-actions";
 import { ItemImage } from "@/components/item-image";
+import { ReminderSheet } from "@/components/reminder-sheet";
 import { Button } from "@/components/ui/button";
 import { EmptyRow, ListGroup, SectionHeader } from "@/components/ui/list";
-import { Sheet, SheetRow } from "@/components/ui/sheet";
 import { isStalled } from "@/lib/items/home";
 import { REMINDER_PRESETS, reminderPreset } from "@/lib/items/reminder";
-import { CATEGORY_LABELS, keyDate, SAMPLE_NOTE, type Category, type Item, type ItemPatch } from "@/lib/items/types";
+import { CATEGORY_LABELS, isAiOff, SAMPLE_NOTE, type Category, type Item } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
-import { addDaysISO, cn, formatAmount, formatDateWithWeekday, formatDday, formatTimestamp, todayISO } from "@/lib/utils";
+import { cn, formatAmount, formatDateWithWeekday, formatDday, formatTimestamp } from "@/lib/utils";
 
 const STATUS_LABEL: Record<Item["status"], string> = {
-  inbox: "확인 필요",
+  inbox: "확인 전",
   active: "진행 중",
   completed: "완료",
   archived: "보관",
@@ -43,12 +43,12 @@ export function ItemDetail({
   onEditingChange?: (editing: boolean) => void;
 }) {
   const nav = useNavigate();
-  const { patch, remove, analyze } = useItemMutations();
+  const { patch, removeWithUndo, analyze } = useItemMutations();
+  const router = useRouter();
   const analyzingIds = useAnalyzingIds();
   const actions = useItemActions(item);
   const [editing, setEditingState] = useState(Boolean(startEditing));
   const [picking, setPicking] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const setEditing = (v: boolean) => {
     setEditingState(v);
@@ -109,7 +109,7 @@ export function ItemDetail({
       ) : stalled ? (
         <Notice tone="warn">분석이 중간에 멈췄어요. 아래 ‘다시 분석’을 눌러 주세요.</Notice>
       ) : inbox && item.analysis_status === "failed" ? (
-        <Notice tone={keyDate(item) ? "warn" : "danger"}>{item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요."}</Notice>
+        <Notice tone={isAiOff(item) ? "info" : "danger"}>{item.analysis_error || "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요."}</Notice>
       ) : item.analysis_note ? (
         <Notice tone={item.analysis_note === SAMPLE_NOTE ? "info" : "warn"}>{item.analysis_note}</Notice>
       ) : null}
@@ -148,44 +148,18 @@ export function ItemDetail({
         <ListGroup>
           <button
             type="button"
-            onClick={() => setConfirmDelete(true)}
+            onClick={() => {
+              // Deleted with an 8-second "되돌리기", then back to the list it was opened from.
+              removeWithUndo(item.id);
+              if (window.history.length > 1) router.history.back();
+              else nav({ to: "/" });
+            }}
             className="flex min-h-13 w-full items-center px-4 text-left text-body font-medium text-danger active:bg-surface-2"
           >
             항목 삭제
           </button>
         </ListGroup>
       </div>
-
-      <Sheet
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title="이 항목을 삭제할까요?"
-        description="원본과 정보가 모두 지워지고 되돌릴 수 없어요."
-      >
-        <div className="mt-5 flex gap-2">
-          <Button variant="secondary" size="lg" className="flex-1" onClick={() => setConfirmDelete(false)}>
-            취소
-          </Button>
-          <Button
-            variant="danger"
-            size="lg"
-            className="flex-1"
-            disabled={remove.isPending}
-            onClick={() =>
-              remove.mutate(item.id, {
-                onSuccess: () => {
-                  setConfirmDelete(false);
-                  toast("삭제했어요");
-                  nav({ to: "/" });
-                },
-                onError: (e) => toast.error(errorText(e)),
-              })
-            }
-          >
-            완전히 삭제
-          </Button>
-        </div>
-      </Sheet>
 
       <CategoryPicker
         open={picking}
@@ -202,8 +176,8 @@ export function ItemDetail({
 
       {analyzing ? null : inbox ? (
         <BottomBar>
-          {/* A failed analysis that still found a date only needs a look, like a finished one. */}
-          {(item.analysis_status === "failed" && !keyDate(item)) || stalled ? (
+          {/* Even when analysis failed the original is saved, so it can always be confirmed as is. */}
+          {stalled || (item.analysis_status === "failed" && !isAiOff(item)) ? (
             <>
               <Button
                 variant="secondary"
@@ -214,8 +188,8 @@ export function ItemDetail({
               >
                 다시 분석
               </Button>
-              <Button size="lg" className="flex-[1.6]" onClick={() => setEditing(true)}>
-                직접 입력
+              <Button size="lg" className="flex-[1.6]" disabled={patch.isPending} onClick={confirm}>
+                이대로 확인
               </Button>
             </>
           ) : (
@@ -378,17 +352,8 @@ function InfoList({ item, onEdit }: { item: Item; onEdit: () => void }) {
 }
 
 function ReminderSection({ item }: { item: Item }) {
-  const { patch } = useItemMutations();
   const [open, setOpen] = useState(false);
-  const [choosingDate, setChoosingDate] = useState(false);
-  const key = keyDate(item);
   const preset = reminderPreset(item);
-
-  const set = (next: ItemPatch) => {
-    patch.mutate({ id: item.id, patch: next }, { onError: (e) => toast.error(errorText(e)) });
-    setOpen(false);
-  };
-
   const presetLabel = typeof preset === "number" ? REMINDER_PRESETS.find((p) => p.days === preset)?.label : null;
   const summary =
     item.reminder_enabled && item.reminder_date
@@ -401,10 +366,7 @@ function ReminderSection({ item }: { item: Item }) {
       <ListGroup>
         <button
           type="button"
-          onClick={() => {
-            setChoosingDate(preset === "custom");
-            setOpen(true);
-          }}
+          onClick={() => setOpen(true)}
           className="flex min-h-13 w-full items-center gap-3 px-4 text-left active:bg-surface-2"
         >
           <span className="flex-1 text-body">알림 시점</span>
@@ -413,56 +375,9 @@ function ReminderSection({ item }: { item: Item }) {
         </button>
       </ListGroup>
       <p className="mt-2 px-1 text-small text-muted">
-        알림일이 되면 홈의 ‘지금 할 것’에 올라와요. 휴대폰 푸시 알림은 아직 지원하지 않아요.
+        알림일이 되면 홈의 ‘지금 할 것’에 올라와요. 휴대폰에서 울리게 하려면 ‘캘린더에 추가’로 넣어 주세요. 알림도 함께 들어가요.
       </p>
-
-      <Sheet
-        open={open}
-        onOpenChange={setOpen}
-        title="알림 시점"
-        description={key ? `기준일 ${formatDateWithWeekday(key)}` : "날짜가 없는 항목이라 알림 날짜를 직접 골라야 해요."}
-      >
-        <div className="mt-3 -mx-2" role="radiogroup" aria-label="알림 시점">
-          <SheetRow
-            role="radio"
-            checked={!item.reminder_enabled}
-            title="끄기"
-            trailing={!item.reminder_enabled ? <Check className="size-5 text-primary" aria-hidden /> : null}
-            onClick={() => set({ reminder_enabled: false })}
-          />
-          {key
-            ? REMINDER_PRESETS.filter((p) => addDaysISO(key, -p.days) >= todayISO()).map((p) => (
-                <SheetRow
-                  key={p.days}
-                  role="radio"
-                  checked={preset === p.days}
-                  title={p.label}
-                  hint={formatDateWithWeekday(addDaysISO(key, -p.days)) ?? undefined}
-                  trailing={preset === p.days ? <Check className="size-5 text-primary" aria-hidden /> : null}
-                  onClick={() => set({ reminder_enabled: true, reminder_date: addDaysISO(key, -p.days) })}
-                />
-              ))
-            : null}
-          <SheetRow
-            role="radio"
-            checked={preset === "custom"}
-            title="날짜 직접 선택"
-            trailing={preset === "custom" ? <Check className="size-5 text-primary" aria-hidden /> : null}
-            onClick={() => setChoosingDate(true)}
-          />
-        </div>
-        {choosingDate ? (
-          <input
-            type="date"
-            aria-label="알림 날짜"
-            defaultValue={item.reminder_date ?? ""}
-            onChange={(e) => {
-              if (e.target.value) set({ reminder_enabled: true, reminder_date: e.target.value });
-            }}
-            className="mt-2 h-13 w-full rounded-md bg-surface-2 px-4 text-body focus:shadow-focus focus:outline-none"
-          />
-        ) : null}
-      </Sheet>
+      <ReminderSheet item={item} open={open} onOpenChange={setOpen} />
     </section>
   );
 }

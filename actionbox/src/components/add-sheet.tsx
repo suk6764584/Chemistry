@@ -10,11 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/use-session";
 import { clearDraft, saveDraft, type Draft } from "@/lib/items/drafts";
 import { compressImageFile } from "@/lib/items/image-client";
-import type { CreateItemInput } from "@/lib/items/types";
-import { useItemMutations } from "@/lib/query";
-import { isUnauthorized, uuid } from "@/lib/utils";
+import { keyDate, type CreateItemInput } from "@/lib/items/types";
+import { useAnalyzingIds, useItem, useItemMutations } from "@/lib/query";
+import { formatDateWithWeekday, formatDday, formatShortDate, isUnauthorized, uuid } from "@/lib/utils";
 
-type Mode = "pick" | "url" | "text" | "image";
+type Mode = "pick" | "url" | "text" | "image" | "done";
 
 type CaptureApi = {
   open: (mode?: "pick" | "url" | "text") => void;
@@ -35,6 +35,7 @@ const SHEET_TITLES: Record<Mode, string> = {
   url: "링크 붙여넣기",
   text: "텍스트 입력",
   image: "사진 저장",
+  done: "저장했어요",
 };
 
 function onlyUrl(text: string): string | null {
@@ -79,6 +80,8 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   // A save that reached the server and failed — only then does the button read "다시 시도".
   const [failed, setFailed] = useState(false);
+  // After a save the sheet stays open on a short result, so several things can go in in a row.
+  const [saved, setSaved] = useState<{ id: string; from: Mode } | null>(null);
   // One id per thing being entered, reused on retry so it is never saved twice.
   const draftId = useRef<string>(uuid());
 
@@ -89,6 +92,7 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
     setImage(null);
     setError(null);
     setFailed(false);
+    setSaved(null);
     draftId.current = uuid();
   }, []);
 
@@ -108,8 +112,8 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
       const item = await create.mutateAsync(toInput(draft));
       clearDraft(draft.id);
       analyze.mutate({ id: item.id });
-      setSheetOpen(false);
-      nav({ to: "/item/$id", params: { id: item.id } });
+      setSaved({ id: item.id, from: draft.kind === "image" ? "pick" : draft.kind });
+      setMode("done");
     } catch (e) {
       if (isUnauthorized(e)) {
         setSheetOpen(false);
@@ -306,6 +310,19 @@ export function CaptureProvider({ children }: { children: ReactNode }) {
               {busy ? "저장 중…" : failed ? "다시 시도" : "저장"}
             </Button>
           </form>
+        ) : mode === "done" && saved ? (
+          <SavedResult
+            id={saved.id}
+            onMore={() => {
+              const from = saved.from;
+              reset();
+              setMode(from);
+            }}
+            onOpen={() => {
+              setSheetOpen(false);
+              nav({ to: "/item/$id", params: { id: saved.id } });
+            }}
+          />
         ) : (
           <div className="mt-4 space-y-3">
             {image ? (
@@ -405,5 +422,51 @@ function CaptureRow({
       <span className="text-small text-muted">{hint}</span>
       <ChevronRight className="size-4 shrink-0 text-subtle" aria-hidden />
     </button>
+  );
+}
+
+/** What was found in the item just saved, updating live while it is being read. */
+function SavedResult({ id, onMore, onOpen }: { id: string; onMore: () => void; onOpen: () => void }) {
+  const { data: item } = useItem(id, true);
+  const analyzingIds = useAnalyzingIds();
+  const reading = !item || (item.analysis_status === "pending" && analyzingIds.includes(id));
+  const date = item ? keyDate(item) : null;
+  const when = date
+    ? [formatDateWithWeekday(date), item?.extracted_date ? item.extracted_time : null, formatDday(date)]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
+  return (
+    <div className="mt-4 space-y-4">
+      <ListGroup className="px-4 py-3.5">
+        <p className="line-clamp-2 text-body font-semibold">{item?.title || "새 항목"}</p>
+        {reading ? (
+          <p className="mt-1 flex items-center gap-1.5 text-small text-muted" role="status">
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            날짜와 할 일을 찾는 중…
+          </p>
+        ) : (
+          <p className="mt-1 text-small text-muted" role="status">
+            {when ? (
+              <>
+                <span className="font-semibold text-fg">{when}</span>
+                {item?.reminder_enabled && item.reminder_date ? ` · ${formatShortDate(item.reminder_date)}에 알려 드려요` : null}
+              </>
+            ) : (
+              "날짜는 찾지 못했어요. 자세히 보기에서 넣을 수 있어요."
+            )}
+          </p>
+        )}
+      </ListGroup>
+      <div className="flex gap-2">
+        <Button variant="secondary" size="lg" className="flex-1" onClick={onMore}>
+          하나 더 넣기
+        </Button>
+        <Button size="lg" className="flex-1" onClick={onOpen}>
+          자세히 보기
+        </Button>
+      </div>
+    </div>
   );
 }

@@ -6,15 +6,18 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useCallback, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
 import {
   analyzeItem,
   createItem,
   deleteItem,
+  deleteSamples,
   getItem,
   getItemImage,
   listItems,
   seedSamples,
+  setItemsStatus,
   updateItem,
 } from "@/lib/items/server";
 import type { CreateItemInput, Item, ItemPatch } from "@/lib/items/types";
@@ -38,12 +41,34 @@ export function AppQueryProvider({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+/**
+ * Items deleted in the last few seconds: hidden everywhere while "되돌리기" is still
+ * on screen, and only then deleted on the server (see `removeWithUndo`).
+ */
+const pendingDeletes = new Set<string>();
+let pendingVersion = 0;
+const pendingListeners = new Set<() => void>();
+
+function changePending(change: () => void) {
+  change();
+  pendingVersion += 1;
+  pendingListeners.forEach((l) => l());
+}
+
+function subscribePending(listener: () => void) {
+  pendingListeners.add(listener);
+  return () => pendingListeners.delete(listener);
+}
+
 export function useItems(enabled: boolean) {
-  return useQuery({
-    queryKey: ["items"],
-    queryFn: () => listItems(),
-    enabled,
-  });
+  const version = useSyncExternalStore(subscribePending, () => pendingVersion, () => 0);
+  const select = useCallback(
+    (items: Item[]) => (pendingDeletes.size ? items.filter((i) => !pendingDeletes.has(i.id)) : items),
+    // A new function whenever the pending set changes, so lists re-filter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [version],
+  );
+  return useQuery({ queryKey: ["items"], queryFn: () => listItems(), enabled, select });
 }
 
 export function useItem(id: string, enabled: boolean) {
@@ -125,6 +150,9 @@ export function useItemMutations() {
       qc.removeQueries({ queryKey: ["item", id] });
       qc.removeQueries({ queryKey: ["item-image", id] });
     },
+    // On the mutation (not the mutate call) so it still runs after the screen has closed.
+    onError: () => toast.error("삭제하지 못했어요. 다시 시도해 주세요."),
+    onSettled: (_, __, id) => changePending(() => pendingDeletes.delete(id)),
   });
 
   const seed = useMutation({
@@ -132,5 +160,38 @@ export function useItemMutations() {
     onSuccess: (items) => qc.setQueryData(["items"], items),
   });
 
-  return { create, analyze, patch, remove, seed };
+  const setMany = useMutation({
+    mutationFn: (input: { ids: string[]; status: Item["status"] }) => setItemsStatus({ data: input }),
+    onSuccess: (items) => qc.setQueryData(["items"], items),
+  });
+
+  const clearSamples = useMutation({
+    mutationFn: () => deleteSamples(),
+    onSuccess: (items) => qc.setQueryData(["items"], items),
+  });
+
+  /** Delete with an 8-second "되돌리기": hidden now, deleted on the server when the toast goes away. */
+  const removeWithUndo = (id: string) => {
+    changePending(() => pendingDeletes.add(id));
+    let settled = false;
+    const commit = () => {
+      if (settled) return;
+      settled = true;
+      remove.mutate(id);
+    };
+    toast("삭제했어요", {
+      duration: 8000,
+      action: {
+        label: "되돌리기",
+        onClick: () => {
+          settled = true;
+          changePending(() => pendingDeletes.delete(id));
+        },
+      },
+      onDismiss: commit,
+      onAutoClose: commit,
+    });
+  };
+
+  return { create, analyze, patch, remove, seed, setMany, clearSamples, removeWithUndo };
 }

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { ListGroup, PageTitle } from "@/components/ui/list";
@@ -10,7 +11,8 @@ import { deleteMyAccount } from "@/lib/account/server";
 import { authEnabled, signOut } from "@/lib/auth/client";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { clearDraft } from "@/lib/items/drafts";
-import { useItems } from "@/lib/query";
+import { SAMPLE_NOTE } from "@/lib/items/types";
+import { useItemMutations, useItems } from "@/lib/query";
 import { SITE } from "@/lib/site";
 import { useSession } from "@/lib/use-session";
 
@@ -24,6 +26,8 @@ function SettingsPage() {
   const items = useItems(Boolean(user));
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { clearSamples } = useItemMutations();
+  const sampleCount = (items.data ?? []).filter((i) => i.analysis_note === SAMPLE_NOTE).length;
 
   if (!isPending && !user) return <RedirectToSignIn />;
   const canSignOut = authEnabled;
@@ -36,6 +40,25 @@ function SettingsPage() {
         <ListGroup>
           <Row title="계정" value={user?.primaryEmail ?? user?.displayName ?? ""} />
         </ListGroup>
+
+        {sampleCount ? (
+          <ListGroup>
+            <button
+              type="button"
+              disabled={clearSamples.isPending}
+              onClick={() =>
+                clearSamples.mutate(undefined, {
+                  onSuccess: () => toast(`예시 ${sampleCount}개를 지웠어요`),
+                  onError: () => toast.error("지우지 못했어요. 다시 시도해 주세요."),
+                })
+              }
+              className="flex min-h-13 w-full items-center gap-3 px-4 text-left active:bg-surface-2 disabled:opacity-60"
+            >
+              <span className="flex-1 text-body">예시 항목 모두 지우기</span>
+              <span className="text-small text-muted">{sampleCount}개</span>
+            </button>
+          </ListGroup>
+        ) : null}
 
         <ListGroup>
           <LinkRow to="/terms" title="이용약관" />

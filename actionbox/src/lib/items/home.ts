@@ -31,6 +31,12 @@ export function groupHomeItems(items: Item[]) {
   const expiring: Item[] = [];
   const later: Item[] = [];
   for (const item of items) {
+    // Unconfirmed items still show once their date is close or the reminder is due —
+    // an item waiting in 수신함 must not miss its day.
+    if (item.status === "inbox") {
+      if (item.analysis_status !== "pending" && keyDate(item) && homeSection(item) === "now") now.push(item);
+      continue;
+    }
     if (item.status !== "active") continue;
     const section = homeSection(item);
     if (section === "now") now.push(item);

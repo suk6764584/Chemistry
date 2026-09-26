@@ -16,6 +16,8 @@ import { parseTextFacts } from "./parse-text";
 import { defaultReminder } from "./reminder";
 import { reminderForSample, sampleItems } from "./samples";
 import {
+  AI_OFF_ERROR,
+  AI_OFF_FOUND_ERROR,
   isActionCode,
   isCategory,
   isStatus,
@@ -311,15 +313,23 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
     const reminder = defaultReminder(ex.category, ex.date, ex.expiration_date, today);
 
     await sql.query(
+      // "다시 분석" never overwrites what is already there (the user may have typed it):
+      // AI values only fill empty fields, and title/type/state change only before confirmation.
       `update items set
-        title = $3, summary = $4, category = $5,
-        extracted_date = $6, extracted_time = $7, expiration_date = $8,
-        location = $9, address = $10, amount = $11, phone = $12,
-        reservation_number = $13, coupon_brand = $14, coupon_product = $15,
+        title = case when status = 'inbox' then $3 else title end,
+        summary = coalesce(summary, $4),
+        category = case when status = 'inbox' then $5 else category end,
+        extracted_date = coalesce(extracted_date, $6::date), extracted_time = coalesce(extracted_time, $7),
+        expiration_date = coalesce(expiration_date, $8::date),
+        location = coalesce(location, $9), address = coalesce(address, $10), amount = coalesce(amount, $11),
+        phone = coalesce(phone, $12), reservation_number = coalesce(reservation_number, $13),
+        coupon_brand = coalesce(coupon_brand, $14), coupon_product = coalesce(coupon_product, $15),
         source_url = coalesce(source_url, $16),
         action_type = $17, recommended_actions = $18::jsonb, confidence = $19::jsonb,
         analysis_status = 'done', analysis_error = null, analysis_note = $20,
-        status = $21, reminder_date = $22, reminder_enabled = $23,
+        status = case when status = 'inbox' then $21 else status end,
+        reminder_enabled = case when reminder_date is null then $23 else reminder_enabled end,
+        reminder_date = coalesce(reminder_date, $22::date),
         updated_at = now()
       where id = $1 and user_id = $2`,
       [
@@ -354,7 +364,7 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
     console.warn(`[items] analysis failed: ${code}`);
     const message =
       code === "AI_UNAVAILABLE"
-        ? "지금은 자동 분석을 사용할 수 없어요. 직접 입력해 주세요."
+        ? AI_OFF_ERROR
         : code === "AI_LIMIT"
           ? `오늘 자동 분석 한도(${aiDailyLimit()}회)를 다 썼어요. 내일 다시 분석하거나 직접 입력해 주세요.`
           : "정보를 정확하게 읽지 못했습니다. 직접 입력해 주세요.";
@@ -381,7 +391,7 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
       [
         item.id,
         userId,
-        facts.date && code === "AI_UNAVAILABLE" ? "자동 분석을 쓸 수 없어 메모에서 날짜만 찾았어요. 맞는지 확인해 주세요." : message,
+        facts.date && code === "AI_UNAVAILABLE" ? AI_OFF_FOUND_ERROR : message,
         pageTitle,
         pageSummary,
         facts.date,
@@ -483,43 +493,31 @@ export const updateItem = createServerFn({ method: "POST" })
     }
     if (reminder_enabled && !reminder_date) reminder_enabled = false;
 
-    const sql = await getSql();
-    await sql.query(
-      `update items set
-        title = $3, summary = $4, category = $5,
-        extracted_date = $6, extracted_time = $7, expiration_date = $8,
-        location = $9, address = $10, amount = $11, phone = $12,
-        reservation_number = $13, coupon_brand = $14, coupon_product = $15,
-        source_url = $16, original_content = $17, status = $18,
-        reminder_date = $19, reminder_enabled = $20, do_today = $21,
-        analysis_note = case when status = 'inbox' and $18 <> 'inbox' then null else analysis_note end,
-        analysis_error = case when status = 'inbox' and $18 <> 'inbox' then null else analysis_error end,
-        updated_at = now()
-      where id = $1 and user_id = $2`,
-      [
-        current.id,
-        context.userId,
-        title,
-        summary,
-        category,
-        extracted_date,
-        extracted_time,
-        expiration_date,
-        location,
-        address,
-        amount,
-        phone,
-        reservation_number,
-        coupon_brand,
-        coupon_product,
-        source_url,
-        original_content,
-        status,
-        reminder_date,
-        reminder_enabled,
-        do_today,
-      ],
+    // Write only the fields this request changed, so two quick edits (a row button and
+    // the detail screen, two tabs) never undo each other with stale values.
+    const next = {
+      title, summary, category, extracted_date, extracted_time, expiration_date, location, address,
+      amount, phone, reservation_number, coupon_brand, coupon_product, source_url, original_content,
+      status, do_today, reminder_date, reminder_enabled,
+    };
+    const columns = (Object.keys(next) as (keyof typeof next)[]).filter(
+      (k) =>
+        p[k] !== undefined ||
+        ((k === "reminder_date" || k === "reminder_enabled") &&
+          (reminder_date !== current.reminder_date || reminder_enabled !== current.reminder_enabled)),
     );
+    const params: unknown[] = [current.id, context.userId, ...columns.map((k) => next[k])];
+    const sets = columns.map((k, i) => `${k} = $${i + 3}`);
+    if (columns.includes("status")) {
+      const n = columns.indexOf("status") + 3;
+      sets.push(
+        `analysis_note = case when status = 'inbox' and $${n} <> 'inbox' then null else analysis_note end`,
+        `analysis_error = case when status = 'inbox' and $${n} <> 'inbox' then null else analysis_error end`,
+      );
+    }
+    sets.push("updated_at = now()");
+    const sql = await getSql();
+    await sql.query(`update items set ${sets.join(", ")} where id = $1 and user_id = $2`, params);
     const updated = await getItemRow(context.userId, current.id);
     if (!updated) throw new Error("항목을 찾을 수 없습니다.");
     return updated;
@@ -534,15 +532,49 @@ export const deleteItem = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Adds the six example items, only while the home has nothing to show (no active items). */
+/** Moves several items at once — one statement, so a dropped connection never applies half of it. */
+export const setItemsStatus = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { ids: string[]; status: Item["status"] }) => {
+    const ids = Array.isArray(input?.ids) ? input.ids.map(String).slice(0, 200) : [];
+    if (!isStatus(String(input?.status))) throw new Error("잘못된 요청입니다.");
+    return { ids, status: input.status };
+  })
+  .handler(async ({ context, data }) => {
+    if (data.ids.length) {
+      const sql = await getSql();
+      await sql.query(
+        `update items set
+          status = $3,
+          do_today = case when $3 = 'active' then do_today else false end,
+          analysis_note = case when status = 'inbox' and $3 <> 'inbox' then null else analysis_note end,
+          analysis_error = case when status = 'inbox' and $3 <> 'inbox' then null else analysis_error end,
+          updated_at = now()
+        where user_id = $1 and id = any($2::text[])`,
+        [context.userId, data.ids, data.status],
+      );
+    }
+    return listRows(context.userId);
+  });
+
+/** Removes every example item ("예시 모두 지우기"). */
+export const deleteSamples = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    await sql.query(`delete from items where user_id = $1 and analysis_note = $2`, [context.userId, SAMPLE_NOTE]);
+    return listRows(context.userId);
+  });
+
+/** Adds the six example items once: not while any are still around, whatever their state. */
 export const seedSamples = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { today?: string }) => ({ today: todayOr(input?.today) }))
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const existing = await sql.query<{ n: number }>(
-      `select count(*)::int as n from items where user_id = $1 and status = 'active'`,
-      [context.userId],
+      `select count(*)::int as n from items where user_id = $1 and (status = 'active' or analysis_note = $2)`,
+      [context.userId, SAMPLE_NOTE],
     );
     if ((existing[0]?.n ?? 0) > 0) return listRows(context.userId);
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { X } from "lucide-react";
 import { Drawer } from "vaul";
 
 /** Bottom sheet — the one overlay pattern in the app (thumb-reachable on phones). */
@@ -28,7 +29,16 @@ export function Sheet({
         >
           <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-surface-3" aria-hidden />
           <div className="overflow-y-auto px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-            <Drawer.Title className="text-title font-semibold">{title}</Drawer.Title>
+            <div className="flex items-start gap-2">
+              <Drawer.Title className="min-w-0 flex-1 pt-1.5 text-title font-semibold">{title}</Drawer.Title>
+              {/* A visible way out besides swiping down or tapping outside. */}
+              <Drawer.Close
+                aria-label="닫기"
+                className="-mt-1 -mr-2 grid size-11 shrink-0 place-items-center rounded-full text-subtle active:bg-surface-2"
+              >
+                <X className="size-5" aria-hidden />
+              </Drawer.Close>
+            </div>
             {description ? <p className="mt-1 text-small text-muted">{description}</p> : null}
             {children}
           </div>

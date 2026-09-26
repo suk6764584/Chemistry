@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Bell, ChevronDown, ChevronRight, Inbox, ListPlus, Pin, X } from "lucide-react";
 import { CaptureButtons, useCapture } from "@/components/add-sheet";
@@ -9,7 +9,7 @@ import { EmptyRow, ListGroup, SectionHeader } from "@/components/ui/list";
 import { Skeleton } from "@/components/ui/skeleton";
 import { clearDraft, loadDraft, useDraftSnapshot, type Draft } from "@/lib/items/drafts";
 import { groupHomeItems, inboxItems } from "@/lib/items/home";
-import type { Item } from "@/lib/items/types";
+import { SAMPLE_NOTE, type Item } from "@/lib/items/types";
 import { useItemMutations } from "@/lib/query";
 import { formatDateWithWeekday, todayISO } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ function Section({ title, items, empty }: { title: string; items: Item[]; empty:
     <section aria-label={title}>
       <SectionHeader title={title} count={items.length} />
       <ListGroup>
-        {items.length === 0 ? <EmptyRow>{empty}</EmptyRow> : shown.map((item) => <ItemRow key={item.id} item={item} />)}
+        {items.length === 0 ? <EmptyRow>{empty}</EmptyRow> : shown.map((item) => <ItemRow key={item.id} item={item} markUnconfirmed />)}
         {items.length > SECTION_LIMIT ? (
           <button
             type="button"
@@ -88,14 +88,14 @@ function Headline() {
   );
 }
 
-function FirstRun() {
+function FirstRun({ hasSamples }: { hasSamples: boolean }) {
   return (
     <div className="space-y-8">
       <div>
         <Headline />
         <CaptureButtons />
       </div>
-      <SeedSection />
+      {hasSamples ? null : <SeedSection />}
     </div>
   );
 }
@@ -128,6 +128,12 @@ function SeedSection() {
 }
 
 export function HomeSignedIn({ items, loading }: { items: Item[]; loading: boolean }) {
+  // A draft whose save did reach the server (the reply was lost) is not "unsaved" any more.
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft && items.some((i) => i.id === draft.id)) clearDraft(draft.id);
+  }, [items]);
+  const hasSamples = items.some((i) => i.analysis_note === SAMPLE_NOTE);
   const grouped = groupHomeItems(items);
   const inbox = inboxItems(items);
   const hasAnything = items.some((i) => i.status === "active" || i.status === "inbox");
@@ -142,7 +148,7 @@ export function HomeSignedIn({ items, loading }: { items: Item[]; loading: boole
           <Skeleton className="h-40 w-full rounded-2xl" />
         </div>
       ) : !hasAnything ? (
-        <FirstRun />
+        <FirstRun hasSamples={hasSamples} />
       ) : (
         <>
           <div className="space-y-4">
@@ -163,7 +169,7 @@ export function HomeSignedIn({ items, loading }: { items: Item[]; loading: boole
                 <p className="px-1 pb-3 text-body text-muted">넣은 항목을 확인하면 여기에 날짜순으로 정리돼요. 더 넣어 보세요.</p>
                 <CaptureButtons />
               </div>
-              <SeedSection />
+              {hasSamples ? null : <SeedSection />}
             </>
           ) : (
             <>
