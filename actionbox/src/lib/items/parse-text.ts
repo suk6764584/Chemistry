@@ -32,14 +32,29 @@ function withYear(m: number, d: number, today: string): string | null {
   return date < addDaysISO(today, -31) ? validDate(year + 1, m, d) : date;
 }
 
+/** In a period ("9/28 ~ 10/2 17:00"), the end is what's due, so read after the "~" first. */
+function rangeEnd(text: string): string | null {
+  const i = text.search(/[~∼～]/);
+  return i >= 0 ? text.slice(i + 1) : null;
+}
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
 export function parseDate(text: string, today: string = todayISO()): string | null {
+  const end = rangeEnd(text);
+  return (end && findDate(end, today)) || findDate(text, today);
+}
+
+function findDate(text: string, today: string): string | null {
   let m = text.match(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/);
   if (m) return validDate(Number(m[1]), Number(m[2]), Number(m[3]));
   m = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
   if (m) return withYear(Number(m[1]), Number(m[2]), today);
-  m = text.match(/(?<![\d.])(\d{1,2})[./](\d{1,2})(?![\d./])/);
+  m = text.match(/(?<![\d.])(\d{1,2})[./](\d{1,2})(?!\d|[./]\d)/);
   if (m) return withYear(Number(m[1]), Number(m[2]), today);
-  const wd = text.match(/(이번\s*주|다음\s*주|담주)?\s*([월화수목금토일])요일/);
+  m = text.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s*(\d{1,2})(?!\d)/i);
+  if (m) return withYear(MONTHS.indexOf(m[1].toLowerCase()) + 1, Number(m[2]), today);
+  const wd = text.match(/(이번\s*주|다음\s*주|담주)?\s*([월화수목금토일])(?:요일|욜)/);
   if (wd) {
     // "금요일" is the coming one (today counts); "다음주 금요일" is in next week (weeks start Monday).
     const [y, mo, d] = today.split("-").map(Number);
@@ -58,8 +73,20 @@ export function parseDate(text: string, today: string = todayISO()): string | nu
 }
 
 export function parseTime(text: string): string | null {
-  let m = text.match(/(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)/);
-  if (m) return `${pad(Number(m[1]))}:${m[2]}`;
+  // "14:00~16:00" starts at 14:00; only a dated end ("~ 10/5 18:00") is the deadline.
+  const end = rangeEnd(text);
+  return (end && findDate(end, todayISO()) && findTime(end)) || findTime(text);
+}
+
+function findTime(text: string): string | null {
+  let m = text.match(/(?<!\d)([01]?\d|2[0-3]):([0-5]\d)(?!\d)\s*([ap]\.?m\.?)?/i);
+  if (m) {
+    let h = Number(m[1]);
+    const ampm = m[3]?.[0].toLowerCase();
+    if (ampm === "p" && h < 12) h += 12;
+    else if (ampm === "a" && h === 12) h = 0;
+    return `${pad(h)}:${m[2]}`;
+  }
   m = text.match(
     /(오전|오후|아침|낮|저녁|밤|새벽)?\s*(\d{1,2})\s*시(?!간)(?:\s*(반|(\d{1,2})\s*분))?/,
   );

@@ -100,6 +100,12 @@ export function formatDday(dateISO: string | null | undefined): string | null {
   return `D+${Math.abs(n)}`;
 }
 
+/** "D-3", "D-Day", "D+2 지남" — a missed date is said in words, not only by its sign. */
+export function formatDdayLabel(dateISO: string | null | undefined): string | null {
+  const text = formatDday(dateISO);
+  return text && text.startsWith("D+") ? `${text} 지남` : text;
+}
+
 export function isUnauthorized(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const e = err as { status?: number; message?: string };

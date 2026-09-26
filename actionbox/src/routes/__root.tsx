@@ -60,6 +60,9 @@ export const Route = createRootRoute({
                   color: "var(--color-primary-inverse)",
                   fontWeight: 600,
                   fontSize: "var(--text-small)",
+                  // "되돌리기" is a thumb target, not a link.
+                  minHeight: 40,
+                  paddingInline: 14,
                 },
               }}
             />

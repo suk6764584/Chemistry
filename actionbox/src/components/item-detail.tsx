@@ -13,7 +13,7 @@ import { isStalled } from "@/lib/items/home";
 import { REMINDER_PRESETS, reminderPreset } from "@/lib/items/reminder";
 import { CATEGORY_LABELS, isAiOff, SAMPLE_NOTE, type Category, type Item } from "@/lib/items/types";
 import { useAnalyzingIds, useItemMutations } from "@/lib/query";
-import { cn, formatAmount, formatDateWithWeekday, formatDday, formatTimestamp } from "@/lib/utils";
+import { cn, formatAmount, formatDateWithWeekday, formatDdayLabel, formatTimestamp } from "@/lib/utils";
 
 const STATUS_LABEL: Record<Item["status"], string> = {
   inbox: "확인 전",
@@ -284,7 +284,7 @@ function InfoList({ item, onEdit }: { item: Item; onEdit: () => void }) {
   const withDday = (date: string) => (
     <>
       {formatDateWithWeekday(date)}
-      {formatDday(date) ? <span className="ml-1.5 text-muted tabular-nums">{formatDday(date)}</span> : null}
+      {formatDdayLabel(date) ? <span className="ml-1.5 text-muted tabular-nums">{formatDdayLabel(date)}</span> : null}
     </>
   );
 

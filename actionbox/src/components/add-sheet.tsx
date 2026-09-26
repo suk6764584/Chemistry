@@ -12,7 +12,7 @@ import { clearDraft, saveDraft, type Draft } from "@/lib/items/drafts";
 import { compressImageFile } from "@/lib/items/image-client";
 import { keyDate, type CreateItemInput } from "@/lib/items/types";
 import { useAnalyzingIds, useItem, useItemMutations } from "@/lib/query";
-import { formatDateWithWeekday, formatDday, formatShortDate, isUnauthorized, uuid } from "@/lib/utils";
+import { formatDateWithWeekday, formatDdayLabel, formatShortDate, isUnauthorized, uuid } from "@/lib/utils";
 
 type Mode = "pick" | "url" | "text" | "image" | "done";
 
@@ -432,7 +432,7 @@ function SavedResult({ id, onMore, onOpen }: { id: string; onMore: () => void; o
   const reading = !item || (item.analysis_status === "pending" && analyzingIds.includes(id));
   const date = item ? keyDate(item) : null;
   const when = date
-    ? [formatDateWithWeekday(date), item?.extracted_date ? item.extracted_time : null, formatDday(date)]
+    ? [formatDateWithWeekday(date), item?.extracted_date ? item.extracted_time : null, formatDdayLabel(date)]
         .filter(Boolean)
         .join(" · ")
     : null;
@@ -451,7 +451,7 @@ function SavedResult({ id, onMore, onOpen }: { id: string; onMore: () => void; o
             {when ? (
               <>
                 <span className="font-semibold text-fg">{when}</span>
-                {item?.reminder_enabled && item.reminder_date ? ` · ${formatShortDate(item.reminder_date)}에 알려 드려요` : null}
+                {item?.reminder_enabled && item.reminder_date ? ` · ${formatShortDate(item.reminder_date)}에 홈 맨 위로 올려 드려요` : null}
               </>
             ) : (
               "날짜는 찾지 못했어요. 자세히 보기에서 넣을 수 있어요."

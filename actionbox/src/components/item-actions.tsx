@@ -37,7 +37,8 @@ const ROW_ACTIONS: Record<Category, ActionCode[]> = {
   read: ["open", "complete"],
   buy: ["open", "archive"],
   reference: ["open", "archive"],
-  other: ["complete"],
+  // Memos saved without analysis land here, so a dated one still gets calendar and reminder.
+  other: ["complete", "calendar", "remind"],
 };
 
 type Code = ActionCode | "restore" | "confirm" | "edit" | "reanalyze";
@@ -253,7 +254,7 @@ export function useItemActions(item: Item) {
     // The type's own next step leads (it becomes the bottom button); the AI's picks follow.
     const lead: Code[] = overdue && (item.category === "event" || item.category === "coupon") ? ["complete"] : ROW_ACTIONS[item.category].slice(0, 1);
     // "complete" always makes the cut, so a finished event or a visited place can be closed out.
-    const rest = pick([...item.recommended_actions, ...ROW_ACTIONS[item.category], "call"], 5).map((a) => a.key);
+    const rest = pick([...item.recommended_actions, ...ROW_ACTIONS[item.category], "calendar", "call"], 5).map((a) => a.key);
     const withComplete = rest.includes("complete") ? rest : [...rest.slice(0, 3), "complete" as const];
     return pick([...lead, ...withComplete, "archive"], 5);
   };
@@ -395,7 +396,7 @@ export function RowActions({ item }: { item: Item }) {
   const { primary, secondary } = rowActions();
   if (!primary) return null;
   return (
-    <div className="relative z-10 ml-auto flex shrink-0 items-center gap-1">
+    <div className="relative z-10 ml-auto flex shrink-0 items-center gap-2">
       {secondary ? <ActionIconButton action={secondary} /> : null}
       <ActionPill action={primary} />
       {sheets}
