@@ -95,5 +95,6 @@ export const deleteMyAccount = createServerFn({ method: "POST" })
 /** Which optional, externally-backed features are configured on this deployment. */
 export const getAuthFeatures = createServerFn({ method: "GET" }).handler(async () => {
   const { mailConfigured } = await import("@/lib/mail.server");
-  return { passwordResetEmail: mailConfigured() };
+  const googleLogin = Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim());
+  return { passwordResetEmail: mailConfigured(), googleLogin };
 });

@@ -14,6 +14,8 @@
 | 동의 기록·재동의 | `consent_log`, `/agree` | 약관 버전이 바뀌면 로그인 사용자에게 다시 동의 받음 |
 | 설정·회원 탈퇴 | `/settings` | 즉시 삭제 |
 | **계정 삭제 웹페이지** | `/delete-account` | 앱 없이도 삭제 가능(로그인 후 삭제 또는 이메일 요청). Google Play 요구사항 대응 |
+| **Google 로그인** | `/login` | `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`을 넣으면 버튼이 나타남. 처음 로그인하면 `/agree`에서 약관 동의 |
+| **문의 페이지** | `/contact` | 로그인 없이 열림. 메일 쓰기(제목·앱 버전 자동 입력), 주소 복사. 앱 하단·설정의 ‘문의’가 이 페이지로 연결 |
 | 비밀번호 재설정 | `/forgot-password` | 메일 서비스 미연결 상태 → "지금은 이용 불가, 문의 이메일" 안내 |
 | AI 자동 분석 | `src/lib/items/ai.ts` | **OpenAI**(`OPENAI_API_KEY`). 키가 없으면 AI 없이 동작(원본 저장 + 직접 입력) |
 | AI 비용 상한 | `src/lib/items/server.ts` | 1인 하루 50회(`AI_DAILY_LIMIT`) |
@@ -48,9 +50,28 @@
 | `OPENAI_API_KEY` | 선택 | 넣으면 AI 분석이 켜짐 |
 | `AI_MODEL` | 선택 | 기본 `gpt-4.1-mini` |
 | `AI_DAILY_LIMIT` | 선택 | 기본 50 |
+| `GOOGLE_CLIENT_ID` | 선택 | 넣으면 Google 로그인 버튼이 켜짐 (아래 3-1) |
+| `GOOGLE_CLIENT_SECRET` | 선택 | 위와 한 쌍 |
 
 - `npm run build`는 `DATABASE_URL`이 있으면 `migrations/*.sql`을 DB에 적용합니다.
 - ⚠️ `site.ts`의 `databaseRegion: "대한민국"`은 **Supabase 프로젝트를 서울 리전으로 만들 때만** 사실입니다. 다른 리전이나 서비스를 쓰면 `site.ts`를 고쳐야 합니다.
+
+### 3-1. Google 로그인 켜기 (무료)
+
+1. ⬜ [Google Cloud 콘솔](https://console.cloud.google.com/)에서 프로젝트 만들기 (이름 예: ActionBox)
+2. ⬜ [Google 인증 플랫폼](https://console.cloud.google.com/auth/overview) → 시작하기
+   - 앱 이름 `ActionBox`, 사용자 지원 이메일, 대상 **외부**, 개발자 연락처 이메일 입력
+3. ⬜ [클라이언트](https://console.cloud.google.com/auth/clients) → 클라이언트 만들기 → 유형 **웹 애플리케이션**
+   - 승인된 JavaScript 원본: `https://actionbox.vercel.app`
+   - 승인된 리디렉션 URI: `https://actionbox.vercel.app/api/auth/callback/google`
+4. ⬜ 만들어진 **클라이언트 ID**와 **클라이언트 보안 비밀번호**를 Vercel → Settings → Environment Variables에 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`으로 넣고 Redeploy
+5. ⬜ [대상](https://console.cloud.google.com/auth/audience)에서 **앱 게시**(프로덕션으로 전환)
+   - 테스트 상태에서는 테스트 사용자로 등록한 계정만 로그인할 수 있습니다.
+   - 이 앱은 민감하지 않은 기본 정보(openid·이메일·프로필)만 요청하므로 Google 앱 인증(심사) 없이 게시할 수 있습니다. 다만 로그인 화면에 앱 이름·로고를 보이게 하려면 브랜드 확인이 필요할 수 있습니다.
+6. ⬜ [브랜딩](https://console.cloud.google.com/auth/branding)에 앱 홈페이지 `https://actionbox.vercel.app`, 개인정보처리방침 `/privacy`, 서비스 약관 `/terms` 주소 입력
+
+- 앱 주소(도메인)가 바뀌면 3번의 원본·리디렉션 URI와 `BETTER_AUTH_URL`을 함께 바꿔야 합니다.
+- Play 앱은 PWABuilder의 TWA(Chrome으로 여는 방식)로 포장하므로 Google 로그인이 됩니다. WebView 방식으로 포장하면 Google이 로그인을 막으니 그 방식은 쓰지 마세요.
 
 ---
 
@@ -66,7 +87,8 @@
 5. ⬜ Play Console 입력
    - 개인정보 처리방침 URL: `https://<주소>/privacy`
    - 계정 삭제 URL: `https://<주소>/delete-account`
-   - 데이터 보안 양식: 처리방침 2항(수집 항목)과 일치시키기
+   - 스토어 등록정보의 웹사이트(문의): `https://<주소>/contact`, 이메일: `rdx840021@gmail.com`
+   - 데이터 보안 양식: 처리방침 2항(수집 항목, Google 로그인 항목 포함)과 일치시키기
 
 ---
 
@@ -79,7 +101,7 @@
   - 삭제 후 `tsconfig.json`의 임시 `exclude` 한 줄도 지웁니다.
 - **사진을 DB에 저장합니다.** Supabase 무료 500MB는 사진이 많아지면 빨리 찹니다. 사용자가 늘면 사진을 Storage로 옮기는 작업이 필요합니다.
 - **가입 이메일 인증이 없습니다.** 메일 서비스를 연결하면 켤 수 있습니다.
-- **구글 로그인이 없습니다.** Grok 중계를 뺐기 때문에 지금은 이메일 로그인만 됩니다. 필요하면 Google 로그인을 직접 연결할 수 있습니다(Google Cloud OAuth, 무료).
+- **같은 이메일로 이메일 가입과 Google 로그인을 섞어 쓸 수 없습니다.** 이메일 인증이 없어서, 남이 먼저 가입해 둔 이메일 계정에 Google 로그인이 붙지 않도록 막아 두었습니다. 이 경우 “이미 이메일로 가입돼 있어요” 안내가 나옵니다. 메일 서비스를 연결해 이메일 인증을 켜면 풀 수 있습니다.
 - **약관 개정 공지는 직접 해야 합니다.** 약관상 적용 7일 전(불리한 변경은 30일 전) 공지해야 합니다.
 - 다른 기기 로그아웃은 최대 5분 늦을 수 있습니다(로그인 캐시).
 - 사업자등록번호와 주소는 입력하지 않았습니다(선택 항목).
@@ -92,3 +114,15 @@
 2. `src/lib/site.ts`의 `termsVersion` / `privacyVersion`을 새 시행일로 변경
 3. 배포 → 로그인 사용자는 다음 방문 때 `/agree`에서 다시 동의
 4. 외부 서비스(DB·AI·호스팅)를 바꾸면 `site.ts`의 해당 값과 처리방침 6항도 함께 수정
+
+---
+
+## 7. 광고를 넣게 되면 (아직 코드 없음)
+
+- **ATT는 필요 없습니다.** ATT(App Tracking Transparency)는 Apple iOS의 추적 허용 팝업입니다. Google Play(Android)에는 해당하지 않습니다. 나중에 App Store에 낼 때 필요합니다.
+- 대신 Android·Play에서 할 일
+  - Play Console → 앱 콘텐츠 → **광고 포함 여부** 신고
+  - **데이터 보안 양식**에 광고 업체가 수집하는 정보(기기 식별자 등) 추가
+  - **개인정보 처리방침** 수정: 지금 10항은 “광고·행태 분석 쿠키를 쓰지 않는다”고 되어 있으므로 광고를 켜기 전에 반드시 바꾸고 `privacyVersion`을 올려야 함
+  - 유럽(EEA)·영국 사용자에게 맞춤 광고를 보이면 Google 인증 동의 관리 도구(CMP)로 동의를 받아야 함. 한국만 배포하면 해당 없음
+- ⚠️ 확인 필요: 이 앱은 웹앱을 포장(TWA)하는 방식이라 AdMob(네이티브 앱용)이 아니라 웹 광고(AdSense 등)를 써야 할 가능성이 큽니다. 포장 앱 안의 웹 광고가 허용되는지는 광고를 넣기 전에 해당 광고 정책을 확인해야 합니다.

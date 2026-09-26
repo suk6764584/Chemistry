@@ -42,7 +42,7 @@ export function ConsentChecklist({ value, onChange }: { value: Consent; onChange
       <div className="mx-4 mb-3 rounded-md bg-surface px-3 py-2.5 text-small text-muted">
         <dl className="space-y-0.5">
           <Fact term="목적">회원 관리, 저장한 항목의 보관·자동 분석·알림</Fact>
-          <Fact term="항목">이메일, 비밀번호, 저장한 사진·텍스트·링크, 접속 기록</Fact>
+          <Fact term="항목">이메일, 비밀번호 또는 Google 계정 정보(이름·프로필 사진), 저장한 사진·텍스트·링크, 접속 기록</Fact>
           <Fact term="보유">회원 탈퇴 시까지 (탈퇴하면 즉시 삭제)</Fact>
         </dl>
         <p className="mt-1.5">

@@ -98,11 +98,9 @@ export function LegalFooter({ className }: { className?: string }) {
         <Link to="/privacy" className="hit-area font-bold text-fg">
           개인정보 처리방침
         </Link>
-        {SITE.supportEmail ? (
-          <a href={`mailto:${SITE.supportEmail}`} className="hit-area">
-            문의
-          </a>
-        ) : null}
+        <Link to="/contact" className="hit-area">
+          문의
+        </Link>
       </p>
     </nav>
   );

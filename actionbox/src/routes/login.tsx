@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Logo } from "@/components/app-shell";
 import { ConsentChecklist, hasAllConsent, NO_CONSENT } from "@/components/consent";
@@ -10,15 +10,26 @@ import { authClient } from "@/lib/auth/client";
 import { useSession } from "@/lib/use-session";
 import { useDraftSnapshot } from "@/lib/items/drafts";
 import { acceptTerms } from "@/lib/account/server";
+import { useAuthFeatures } from "@/lib/query";
 import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/login")({
   // Only known in-app destinations, so this can't become an open redirect.
-  validateSearch: (s: Record<string, unknown>): { next?: "/settings" } => ({
+  // `error` is set by the auth server when a Google sign-in comes back failed;
+  // it is only ever mapped to fixed text, never shown as is.
+  validateSearch: (s: Record<string, unknown>): { next?: "/settings"; error?: string } => ({
     next: s.next === "/settings" ? "/settings" : undefined,
+    error: typeof s.error === "string" ? s.error : undefined,
   }),
   component: Login,
 });
+
+function socialErrorText(code: string | undefined): string | null {
+  if (!code) return null;
+  if (code === "account_not_linked") return "이 이메일은 이미 이메일로 가입돼 있어요. 이메일과 비밀번호로 로그인해 주세요.";
+  if (code === "access_denied") return "Google 로그인을 취소했어요.";
+  return "Google 로그인에 실패했어요. 다시 시도해 주세요.";
+}
 
 /** The auth server answers in English; show people Korean. */
 function authErrorText(err: { code?: string; message?: string }, fallback: string): string {
@@ -34,15 +45,26 @@ function authErrorText(err: { code?: string; message?: string }, fallback: strin
 }
 
 function Login() {
-  const { next } = Route.useSearch();
+  const { next, error: socialError } = Route.useSearch();
   const { user, isPending } = useSession();
   const hasDraft = Boolean(useDraftSnapshot());
+  const googleLogin = useAuthFeatures().data?.googleLogin ?? false;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"in" | "up">("in");
   const [consent, setConsent] = useState(NO_CONSENT);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() => socialErrorText(socialError));
   const [busy, setBusy] = useState(false);
+
+  // Coming back from Google with the back button can restore this page as it
+  // was left — mid-redirect, buttons disabled. Make it usable again.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy(false);
+    };
+    window.addEventListener("pageshow", onShow);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, []);
 
   if (isPending) {
     return <main className="grid min-h-dvh place-items-center bg-bg" />;
@@ -87,6 +109,23 @@ function Login() {
     }
   };
 
+  // Leaves for Google and comes back signed in. First-timers land on /agree
+  // for the same consent the email sign-up asks for.
+  const submitGoogle = async () => {
+    setError(null);
+    setBusy(true);
+    const { error: err } = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: next ?? "/",
+      newUserCallbackURL: "/agree",
+      errorCallbackURL: "/login",
+    });
+    if (err) {
+      setError("Google 로그인에 실패했어요. 다시 시도해 주세요.");
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface px-5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-10">
       <Link to="/" className="flex h-13 items-center gap-2 self-start">
@@ -109,8 +148,22 @@ function Login() {
         </p>
       ) : null}
 
+      {googleLogin ? (
+        <div className="mt-7">
+          <Button variant="outline" size="lg" className="w-full gap-2.5" disabled={busy} onClick={() => void submitGoogle()}>
+            <GoogleLogo className="size-5" />
+            Google로 계속하기
+          </Button>
+          <div className="mt-6 flex items-center gap-3 text-small text-muted" aria-hidden>
+            <span className="h-px flex-1 bg-line" />
+            또는 이메일로
+            <span className="h-px flex-1 bg-line" />
+          </div>
+        </div>
+      ) : null}
+
       <form
-        className="mt-7 space-y-4"
+        className={googleLogin ? "mt-5 space-y-4" : "mt-7 space-y-4"}
         onSubmit={(e) => {
           e.preventDefault();
           void submitEmail();
@@ -163,5 +216,29 @@ function Login() {
 
       <LegalFooter className="mt-auto pt-10" />
     </main>
+  );
+}
+
+/** Google's standard "G" mark, as its sign-in branding guidelines require. */
+function GoogleLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden>
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+      />
+    </svg>
   );
 }
