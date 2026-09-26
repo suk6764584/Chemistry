@@ -219,14 +219,21 @@ export function reviewNote(ex: AiExtraction, pageRead: boolean | null): string |
 
 type ChatPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
-async function callGrok(messages: { role: "system" | "user"; content: string | ChatPart[] }[]): Promise<string> {
-  const apiKey = process.env.XAI_API_KEY;
+/** Chat model for analysis; must read images and support JSON mode. Override with AI_MODEL. */
+const DEFAULT_MODEL = "gpt-4.1-mini";
+
+/**
+ * OpenAI Chat Completions. Without OPENAI_API_KEY the app keeps working: items
+ * are saved and the user is told analysis is unavailable (AI_UNAVAILABLE).
+ */
+async function callAi(messages: { role: "system" | "user"; content: string | ChatPart[] }[]): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) throw new Error("AI_UNAVAILABLE");
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 45_000);
   try {
-    const res = await fetch("https://api.x.ai/v1/chat/completions", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -234,9 +241,9 @@ async function callGrok(messages: { role: "system" | "user"; content: string | C
       },
       signal: controller.signal,
       body: JSON.stringify({
-        model: "grok-4.5",
+        model: process.env.AI_MODEL?.trim() || DEFAULT_MODEL,
         temperature: 0,
-        max_tokens: 900,
+        max_completion_tokens: 900,
         response_format: { type: "json_object" },
         messages,
       }),
@@ -293,7 +300,7 @@ export async function analyzeWithAi(opts: {
   const parts: ChatPart[] = [{ type: "text", text: userText }];
   if (opts.imageDataUrl) parts.push({ type: "image_url", image_url: { url: opts.imageDataUrl } });
 
-  const content = await callGrok([
+  const content = await callAi([
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: parts },
   ]);

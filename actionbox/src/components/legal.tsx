@@ -9,7 +9,7 @@ export function Blank({ value }: { value: string }) {
 }
 
 /** Document layout for the terms and privacy pages — readable without signing in. */
-export function LegalDoc({ title, version, children }: { title: string; version: string; children: ReactNode }) {
+export function LegalDoc({ title, version, children }: { title: string; version?: string; children: ReactNode }) {
   const router = useRouter();
   const missing = missingSiteFields();
   return (
@@ -29,7 +29,7 @@ export function LegalDoc({ title, version, children }: { title: string; version:
       </header>
       <article className="px-5 pt-2 pb-16 text-small leading-relaxed text-fg [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2">
         <h1 className="text-display font-bold">{title}</h1>
-        <p className="mt-1 text-small text-muted">시행일 {formatVersionDate(version)}</p>
+        {version ? <p className="mt-1 text-small text-muted">시행일 {formatVersionDate(version)}</p> : null}
         {missing.length ? (
           <p className="mt-4 rounded-md bg-danger-soft px-4 py-3 text-small text-danger" role="alert">
             아직 입력되지 않은 운영자 정보가 있어요: {missing.join(", ")}. 출시 전에 채워야 하는 항목입니다.
@@ -38,6 +38,7 @@ export function LegalDoc({ title, version, children }: { title: string; version:
         <div className="mt-6 space-y-7">{children}</div>
         <p className="mt-10 text-small text-muted">
           {SITE.serviceName} · 운영자 <Blank value={SITE.operator} />
+          {SITE.representative ? ` · 대표 ${SITE.representative}` : ""}
           {SITE.businessNumber ? ` · 사업자등록번호 ${SITE.businessNumber}` : ""}
           {SITE.address ? ` · ${SITE.address}` : ""}
         </p>

@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
@@ -8,7 +8,6 @@ import { ListGroup, PageTitle } from "@/components/ui/list";
 import { Sheet } from "@/components/ui/sheet";
 import { deleteMyAccount } from "@/lib/account/server";
 import { authEnabled, signOut } from "@/lib/auth/client";
-import { hasGateSessionMarker } from "@/lib/auth/gate-session-marker";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { clearDraft } from "@/lib/items/drafts";
 import { useItems } from "@/lib/query";
@@ -20,17 +19,14 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
-const subscribeToNothing = () => () => {};
-
 function SettingsPage() {
   const { user, isPending } = useSession();
   const items = useItems(Boolean(user));
-  const gateSession = useSyncExternalStore(subscribeToNothing, hasGateSessionMarker, () => false);
   const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   if (!isPending && !user) return <RedirectToSignIn />;
-  const canSignOut = authEnabled && !gateSession;
+  const canSignOut = authEnabled;
 
   return (
     // Reachable from /agree, so it must not bounce back there.

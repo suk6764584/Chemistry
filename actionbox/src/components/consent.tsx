@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
+import { SITE } from "@/lib/site";
 
 export type Consent = { age: boolean; terms: boolean; privacy: boolean };
 export const NO_CONSENT: Consent = { age: false, terms: false, privacy: false };
@@ -41,12 +42,12 @@ export function ConsentChecklist({ value, onChange }: { value: Consent; onChange
       <div className="mx-4 mb-3 rounded-md bg-surface px-3 py-2.5 text-small text-muted">
         <dl className="space-y-0.5">
           <Fact term="목적">회원 관리, 저장한 항목의 보관·자동 분석·알림</Fact>
-          <Fact term="항목">이메일, 비밀번호 또는 소셜 계정 정보, 저장한 사진·텍스트·링크, 접속 기록</Fact>
+          <Fact term="항목">이메일, 비밀번호, 저장한 사진·텍스트·링크, 접속 기록</Fact>
           <Fact term="보유">회원 탈퇴 시까지 (탈퇴하면 즉시 삭제)</Fact>
         </dl>
         <p className="mt-1.5">
-          저장한 사진·텍스트·링크는 자동 분석을 위해 생성형 AI 서비스(xAI, 미국)로 전송돼요. 동의하지 않을 수 있지만, 그러면
-          가입할 수 없어요.
+          저장한 사진·텍스트·링크는 자동 분석을 위해 생성형 AI 서비스({SITE.ai.name}, {SITE.ai.country})로 전송돼요. 동의하지
+          않을 수 있지만, 그러면 가입할 수 없어요.
         </p>
       </div>
     </fieldset>

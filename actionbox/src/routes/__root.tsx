@@ -1,7 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { CaptureProvider } from "@/components/add-sheet";
-import { PreviewHostBridge } from "@/components/preview-host-bridge";
 import { AppQueryProvider } from "@/lib/query";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
@@ -19,12 +18,16 @@ export const Route = createRootRoute({
         name: "description",
         content: "저장만 하고 잊은 정보를, 필요한 순간 실제 행동으로 연결합니다.",
       },
+      { property: "og:type", content: "website" },
+      { property: "og:title", content: APP_NAME },
+      { property: "og:description", content: "저장만 하고 잊은 정보를, 필요한 순간 실제 행동으로 연결합니다." },
+      { property: "og:image", content: "/og.jpg" },
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
-      { rel: "manifest", href: "/__grok/manifest.webmanifest" },
-      { rel: "apple-touch-icon", href: "/__grok/icon-180.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/icon-180.png" },
     ],
   }),
   component: () => (
@@ -33,7 +36,6 @@ export const Route = createRootRoute({
         <HeadContent />
       </head>
       <body>
-        <PreviewHostBridge />
         <AuthProvider>
           <AppQueryProvider>
             <CaptureProvider>

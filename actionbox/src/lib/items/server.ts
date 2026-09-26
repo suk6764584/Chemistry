@@ -248,7 +248,7 @@ export const createItem = createServerFn({ method: "POST" })
     return created;
   });
 
-/** Analyses per user per day (Asia/Seoul) — caps what one account can spend of the xAI quota. */
+/** Analyses per user per day (Asia/Seoul) — caps what one account can spend of the AI budget. */
 function aiDailyLimit(): number {
   const n = Number.parseInt(process.env.AI_DAILY_LIMIT ?? "", 10);
   return Number.isFinite(n) && n > 0 ? n : 50;
@@ -256,7 +256,7 @@ function aiDailyLimit(): number {
 
 /** Counts this attempt and throws AI_LIMIT once today's cap is used up. */
 async function takeAiQuota(userId: string): Promise<void> {
-  if (!process.env.XAI_API_KEY) return; // Nothing is spent without a key.
+  if (!process.env.OPENAI_API_KEY?.trim()) return; // Nothing is spent without a key.
   const sql = await getSql();
   const rows = await sql.query<{ count: number }>(
     `insert into ai_usage (user_id, day, count) values ($1, (now() at time zone 'Asia/Seoul')::date, 1)

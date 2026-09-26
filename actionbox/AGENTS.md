@@ -1,3 +1,9 @@
+> **2026-09 — this project has left the Grok App Builder platform** (target: Google Play via a
+> Trusted Web Activity, self-hosted). The Grok-specific contracts below — broker sign-in, gate
+> auto sign-in, the PWA injector and "Created with Grok" pill, `PreviewHostBridge`, injected
+> `XAI_API_KEY` — no longer apply and have been unwired. See `LAUNCH_CHECKLIST.md` for the
+> current services and env vars.
+
 # App Builder Workspace
 
 **The single source of truth** for the App Builder sandbox contract. You are

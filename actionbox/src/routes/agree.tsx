@@ -6,7 +6,6 @@ import { ConsentChecklist, hasAllConsent, NO_CONSENT } from "@/components/consen
 import { Button } from "@/components/ui/button";
 import { acceptTerms } from "@/lib/account/server";
 import { authEnabled, signOut } from "@/lib/auth/client";
-import { hasGateSessionMarker } from "@/lib/auth/gate-session-marker";
 import { useAccountStatus } from "@/lib/query";
 import { SITE } from "@/lib/site";
 import { useSession } from "@/lib/use-session";
@@ -77,8 +76,7 @@ function Agree() {
       </div>
 
       <div className="mt-auto space-y-1 pt-10 text-center text-small text-muted">
-        {/* Same rule as UserButton: a gate session signs straight back in. */}
-        {authEnabled && !hasGateSessionMarker() ? (
+        {authEnabled ? (
           <button type="button" className="hit-area font-semibold" onClick={() => void signOut("/login").catch(() => undefined)}>
             로그아웃
           </button>

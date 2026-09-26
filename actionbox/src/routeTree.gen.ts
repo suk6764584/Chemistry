@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgreeRouteImport } from './routes/agree'
 import { Route as CompletedRouteImport } from './routes/completed'
+import { Route as DeleteAccountRouteImport } from './routes/delete-account'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as LoginRouteImport } from './routes/login'
@@ -36,6 +37,11 @@ const AgreeRoute = AgreeRouteImport.update({
 const CompletedRoute = CompletedRouteImport.update({
   id: '/completed',
   path: '/completed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeleteAccountRoute = DeleteAccountRouteImport.update({
+  id: '/delete-account',
+  path: '/delete-account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agree': typeof AgreeRoute
   '/completed': typeof CompletedRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agree': typeof AgreeRoute
   '/completed': typeof CompletedRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/agree': typeof AgreeRoute
   '/completed': typeof CompletedRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/inbox': typeof InboxRoute
   '/login': typeof LoginRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agree'
     | '/completed'
+    | '/delete-account'
     | '/forgot-password'
     | '/inbox'
     | '/login'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agree'
     | '/completed'
+    | '/delete-account'
     | '/forgot-password'
     | '/inbox'
     | '/login'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/'
     | '/agree'
     | '/completed'
+    | '/delete-account'
     | '/forgot-password'
     | '/inbox'
     | '/login'
@@ -187,6 +199,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgreeRoute: typeof AgreeRoute
   CompletedRoute: typeof CompletedRoute
+  DeleteAccountRoute: typeof DeleteAccountRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   InboxRoute: typeof InboxRoute
   LoginRoute: typeof LoginRoute
@@ -220,6 +233,13 @@ declare module '@tanstack/react-router' {
       path: '/completed'
       fullPath: '/completed'
       preLoaderRoute: typeof CompletedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/delete-account': {
+      id: '/delete-account'
+      path: '/delete-account'
+      fullPath: '/delete-account'
+      preLoaderRoute: typeof DeleteAccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -299,6 +319,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgreeRoute: AgreeRoute,
   CompletedRoute: CompletedRoute,
+  DeleteAccountRoute: DeleteAccountRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   InboxRoute: InboxRoute,
   LoginRoute: LoginRoute,

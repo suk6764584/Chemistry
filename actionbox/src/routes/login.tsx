@@ -6,15 +6,22 @@ import { LegalFooter } from "@/components/legal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { authClient } from "@/lib/auth/client";
 import { useSession } from "@/lib/use-session";
 import { useDraftSnapshot } from "@/lib/items/drafts";
 import { acceptTerms } from "@/lib/account/server";
 import { SITE } from "@/lib/site";
 
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({
+  // Only known in-app destinations, so this can't become an open redirect.
+  validateSearch: (s: Record<string, unknown>): { next?: "/settings" } => ({
+    next: s.next === "/settings" ? "/settings" : undefined,
+  }),
+  component: Login,
+});
 
 function Login() {
+  const { next } = Route.useSearch();
   const { user, isPending } = useSession();
   const hasDraft = Boolean(useDraftSnapshot());
   const [email, setEmail] = useState("");
@@ -27,7 +34,7 @@ function Login() {
   if (isPending) {
     return <main className="grid min-h-dvh place-items-center bg-bg" />;
   }
-  if (user) return <Navigate to="/" />;
+  if (user) return <Navigate to={next ?? "/"} />;
 
   const submitEmail = async () => {
     setError(null);
@@ -56,7 +63,7 @@ function Login() {
         const { error: err } = await authClient.signIn.email({ email: email.trim(), password });
         if (err) throw new Error(err.message || "로그인에 실패했습니다.");
       }
-      window.location.href = "/";
+      window.location.href = next ?? "/";
     } catch (e) {
       setError(e instanceof Error ? e.message : "로그인에 실패했습니다.");
       setBusy(false);
@@ -136,31 +143,6 @@ function Login() {
           {mode === "up" ? "이미 계정이 있어요 · 로그인" : "처음이에요 · 이메일로 가입"}
         </button>
       </form>
-
-      {authEnabled ? (
-        <div className="mt-6 space-y-2.5">
-          <div className="flex items-center gap-3 text-small text-muted">
-            <span className="h-px flex-1 bg-line" />
-            또는
-            <span className="h-px flex-1 bg-line" />
-          </div>
-          {GROK_PROVIDERS.map((p) => (
-            <Button
-              key={p.providerId}
-              variant="outline"
-              size="lg"
-              className="w-full"
-              onClick={() =>
-                void signIn(p.providerId, { callbackURL: "/" }).catch((e: unknown) =>
-                  setError(e instanceof Error ? e.message : "로그인에 실패했습니다."),
-                )
-              }
-            >
-              {p.label}로 계속하기
-            </Button>
-          ))}
-        </div>
-      ) : null}
 
       <LegalFooter className="mt-auto pt-10" />
     </main>

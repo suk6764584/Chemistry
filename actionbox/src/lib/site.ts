@@ -15,7 +15,9 @@ type SiteConfig = {
   address: string;
   supportEmail: string;
   privacyOfficer: { name: string; email: string };
+  databaseProvider: string;
   databaseRegion: string;
+  ai: { name: string; country: string };
   backupRetention: string;
   termsVersion: string;
   privacyVersion: string;
@@ -26,26 +28,30 @@ export const SITE: SiteConfig = {
   appVersion: "1.0.0",
 
   /** 운영자: 회사명, 또는 개인 운영 시 성명 */
-  operator: "",
-  /** 대표자 성명 (사업자인 경우) */
-  representative: "",
+  operator: "미소테크",
+  /** 대표자 성명 */
+  representative: "강무근",
   /** 사업자등록번호 (사업자인 경우) */
   businessNumber: "",
   /** 사업장 주소 (사업자인 경우) */
   address: "",
   /** 이용자 문의를 받을 이메일 */
-  supportEmail: "",
+  supportEmail: "rdx840021@gmail.com",
 
   /** 개인정보 보호책임자 (개인정보 보호법 제31조) */
-  privacyOfficer: { name: "", email: "" },
+  privacyOfficer: { name: "강무근", email: "rdx840021@gmail.com" },
 
   /**
-   * Where the database runs. Set this after checking the project settings of
-   * the Postgres provider (e.g. Neon region) — it is disclosed in the privacy policy.
+   * Where the database runs — disclosed in the privacy policy, so it must match
+   * the real project (e.g. a Supabase project created in the Seoul region).
    */
-  databaseRegion: "",
-  /** DB 백업(시점 복구) 보관 기간. 백업을 끄면 "백업 없음". */
-  backupRetention: "",
+  databaseProvider: "Supabase",
+  databaseRegion: "대한민국",
+  /** DB 백업 보관 기간(상한). 실제 백업 설정이 이 기간을 넘지 않게 해 주세요. */
+  backupRetention: "최대 3개월",
+
+  /** 자동 분석에 쓰는 생성형 AI (`src/lib/items/ai.ts`). 바꾸면 여기도 바꿔 주세요. */
+  ai: { name: "OpenAI", country: "미국" },
 
   /** 시행일 = 버전. 문서를 바꾸면 날짜를 올려 주세요. */
   termsVersion: "2026-09-26",

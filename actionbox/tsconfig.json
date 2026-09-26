@@ -32,5 +32,7 @@
   "include": [
     "src",
     "server"
-  ]
+  ],
+  // Unwired Grok-only file (the broker sign-in it drove is gone); delete it.
+  "exclude": ["src/lib/auth/popup.server.ts"]
 }
