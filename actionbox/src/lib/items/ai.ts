@@ -219,50 +219,93 @@ export function reviewNote(ex: AiExtraction, pageRead: boolean | null): string |
 
 type ChatPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
-/** Chat model for analysis; must read images and support JSON mode. Override with AI_MODEL. */
-const DEFAULT_MODEL = "gpt-4.1-mini";
+type AiProvider = { name: "gemini" | "openai"; url: string; key: string; body: Record<string, unknown> };
 
 /**
- * OpenAI Chat Completions. Without OPENAI_API_KEY the app keeps working: items
- * are saved and the user is told analysis is unavailable (AI_UNAVAILABLE).
+ * Where analysis goes, in order. Google's Gemini API (AI Studio key) first, then
+ * OpenAI when Gemini fails or its free quota is used up. Both speak the OpenAI
+ * Chat Completions format; each must read images and answer in JSON mode.
+ * Models: GEMINI_MODEL (default gemini-3.5-flash-lite), AI_MODEL for OpenAI.
  */
-async function callAi(messages: { role: "system" | "user"; content: string | ChatPart[] }[]): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) throw new Error("AI_UNAVAILABLE");
+function aiProviders(): AiProvider[] {
+  const list: AiProvider[] = [];
+  const gemini = process.env.GEMINI_API_KEY?.trim();
+  if (gemini) {
+    list.push({
+      name: "gemini",
+      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      key: gemini,
+      body: { model: process.env.GEMINI_MODEL?.trim() || "gemini-3.5-flash-lite" },
+    });
+  }
+  const openai = process.env.OPENAI_API_KEY?.trim();
+  if (openai) {
+    list.push({
+      name: "openai",
+      url: "https://api.openai.com/v1/chat/completions",
+      key: openai,
+      body: { model: process.env.AI_MODEL?.trim() || "gpt-4.1-mini", max_completion_tokens: 900 },
+    });
+  }
+  return list;
+}
 
+/** Whether any AI provider is configured (without one, analysis is simply off). */
+export function aiConfigured(): boolean {
+  return aiProviders().length > 0;
+}
+
+async function callProvider(p: AiProvider, messages: unknown[]): Promise<string> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45_000);
+  const timer = setTimeout(() => controller.abort(), 30_000);
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch(p.url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.key}` },
       signal: controller.signal,
-      body: JSON.stringify({
-        model: process.env.AI_MODEL?.trim() || DEFAULT_MODEL,
-        temperature: 0,
-        max_completion_tokens: 900,
-        response_format: { type: "json_object" },
-        messages,
-      }),
+      body: JSON.stringify({ ...p.body, temperature: 0, response_format: { type: "json_object" }, messages }),
     });
     if (!res.ok) {
-      // OpenAI's error code says why (insufficient_quota, invalid_api_key, …) and never
-      // carries user content, so it is safe to log.
+      // The provider's error code says why (insufficient_quota, invalid_api_key,
+      // RESOURCE_EXHAUSTED, …) and never carries user content, so it is safe to log.
+      type ErrorBody = { error?: { code?: unknown; type?: unknown; status?: unknown } };
       const reason = await res
         .json()
-        .then((b: { error?: { code?: unknown; type?: unknown } }) => b.error?.code ?? b.error?.type)
+        .then((b: ErrorBody | ErrorBody[]) => {
+          const e = (Array.isArray(b) ? b[0] : b)?.error;
+          return typeof e?.status === "string" ? e.status : typeof e?.code === "string" ? e.code : e?.type;
+        })
         .catch(() => null);
       const tag = typeof reason === "string" ? reason.replace(/[^\w.-]/g, "").slice(0, 40) : "";
       throw new Error(`AI_HTTP_${res.status}${tag ? `:${tag}` : ""}`);
     }
     const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    return body.choices?.[0]?.message?.content ?? "";
+    const content = body.choices?.[0]?.message?.content ?? "";
+    if (!parseJsonObject(content)) throw new Error("AI_BAD_RESPONSE");
+    return content;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Tries each configured provider in turn. Without any key the app keeps working:
+ * items are saved and the user is told analysis is unavailable (AI_UNAVAILABLE).
+ */
+async function callAi(messages: { role: "system" | "user"; content: string | ChatPart[] }[]): Promise<string> {
+  const providers = aiProviders();
+  if (!providers.length) throw new Error("AI_UNAVAILABLE");
+  let lastError: unknown = null;
+  for (const p of providers) {
+    try {
+      return await callProvider(p, messages);
+    } catch (err) {
+      lastError = err;
+      const code = err instanceof Error ? err.message : "AI_ERROR";
+      if (p !== providers[providers.length - 1]) console.warn(`[items] ${p.name} failed (${code}), trying the next provider`);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("AI_ERROR");
 }
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];

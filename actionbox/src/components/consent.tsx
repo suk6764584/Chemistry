@@ -46,8 +46,9 @@ export function ConsentChecklist({ value, onChange }: { value: Consent; onChange
           <Fact term="보유">회원 탈퇴 시까지 (탈퇴하면 즉시 삭제)</Fact>
         </dl>
         <p className="mt-1.5">
-          저장한 사진·텍스트·링크는 자동 분석을 위해 생성형 AI 서비스({SITE.ai.name}, {SITE.ai.country})로 전송돼요. 동의하지
-          않을 수 있지만, 그러면 가입할 수 없어요.
+          저장한 사진·텍스트·링크는 자동 분석을 위해 생성형 AI 서비스({SITE.ai.name}, {SITE.ai.country})로 전송돼요. Google
+          무료 등급을 쓰는 동안에는 Google이 이 내용을 서비스 개선(AI 학습 포함)에 쓸 수 있어요. 동의하지 않을 수 있지만,
+          그러면 가입할 수 없어요.
         </p>
       </div>
     </fieldset>
