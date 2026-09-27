@@ -76,6 +76,7 @@ export type Item = {
   reservation_number: string | null;
   coupon_brand: string | null;
   coupon_product: string | null;
+  coupon_code: string | null;
   action_type: ActionCode | null;
   recommended_actions: ActionCode[];
   confidence: ConfidenceMap;
@@ -108,6 +109,7 @@ export type ItemPatch = Partial<
     | "reservation_number"
     | "coupon_brand"
     | "coupon_product"
+    | "coupon_code"
     | "source_url"
     | "original_content"
     | "status"
@@ -131,6 +133,7 @@ export type AiExtraction = {
   reservation_number: string | null;
   coupon_brand: string | null;
   coupon_product: string | null;
+  coupon_code: string | null;
   url: string | null;
   recommended_actions: ActionCode[];
   confidence: ConfidenceMap;

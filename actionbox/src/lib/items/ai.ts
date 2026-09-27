@@ -46,6 +46,7 @@ date ("YYYY-MM-DD", 행사·예약·할 일의 날짜), time ("HH:MM", 24시간)
 expiration_date ("YYYY-MM-DD", 쿠폰 유효기간·신청 마감일),
 location (장소·상호 이름), address, amount (보이는 그대로, 예: "26,900원"), phone,
 reservation_number, coupon_brand, coupon_product,
+coupon_code (쿠폰·기프티콘을 쓸 때 필요한 번호: 바코드 아래 숫자, 쿠폰번호, PIN. 보이는 그대로. 주문번호·예약번호는 넣지 않는다),
 url (이미지·텍스트 안에 보이는 링크),
 recommended_actions (코드 배열),
 confidence { category, date, time, expiration_date, location, address, phone }`;
@@ -193,6 +194,7 @@ export function normalizeExtraction(raw: Record<string, unknown>): AiExtraction 
     reservation_number: asString(raw.reservation_number, 60),
     coupon_brand: asString(raw.coupon_brand, 60),
     coupon_product: asString(raw.coupon_product, 80),
+    coupon_code: asString(raw.coupon_code, 60),
     url: asHttpUrl(raw.url),
     recommended_actions,
     confidence,
