@@ -512,7 +512,7 @@ export async function fetchPageMeta(startUrl: string): Promise<PageMeta> {
         signal: controller.signal,
         redirect: "manual",
         headers: {
-          "User-Agent": "ActionBox/1.0 (+link preview)",
+          "User-Agent": "Daram/1.0 (+link preview)",
           Accept: "text/html,application/xhtml+xml",
           "Accept-Language": "ko,en;q=0.8",
         },

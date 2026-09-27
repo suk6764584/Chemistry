@@ -1,5 +1,5 @@
 /**
- * "공유 → ActionBox" on Android (Web Share Target, see `share_target` in the
+ * "공유 → 다람" on Android (Web Share Target, see `share_target` in the
  * manifest). The service worker (`public/sw.js`) receives what was shared,
  * parks it in Cache Storage and opens the app; the app picks it up here once
  * someone is signed in, so a sign-in detour never loses it.

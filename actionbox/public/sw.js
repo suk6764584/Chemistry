@@ -1,4 +1,4 @@
-// ActionBox service worker. Its only job is Android's "공유 → ActionBox" (Web Share Target):
+// 다람 service worker. Its only job is Android's "공유 → 다람" (Web Share Target):
 // it keeps what was shared in Cache Storage and opens the app, which saves it
 // (src/lib/items/share.ts). It caches nothing else and leaves every other request alone.
 const CACHE = "actionbox-share";

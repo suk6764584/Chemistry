@@ -3,7 +3,7 @@ import { Blank, Bullets, Clause, LegalDoc } from "@/components/legal";
 import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/terms")({
-  head: () => ({ meta: [{ title: "이용약관 · ActionBox" }] }),
+  head: () => ({ meta: [{ title: "이용약관 · 다람" }] }),
   component: TermsPage,
 });
 

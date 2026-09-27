@@ -66,7 +66,7 @@ export function buildIcs(ev: CalendarEvent): string {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//ActionBox//KR",
+    "PRODID:-//Daram//KR",
     "CALSCALE:GREGORIAN",
     ...(allDay ? [] : SEOUL_TZ),
     "BEGIN:VEVENT",

@@ -17,7 +17,7 @@ import { SITE } from "@/lib/site";
 import { useSession } from "@/lib/use-session";
 
 export const Route = createFileRoute("/settings")({
-  head: () => ({ meta: [{ title: "설정 · ActionBox" }] }),
+  head: () => ({ meta: [{ title: "설정 · 다람" }] }),
   component: SettingsPage,
 });
 

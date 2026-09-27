@@ -24,7 +24,7 @@ type SiteConfig = {
 };
 
 export const SITE: SiteConfig = {
-  serviceName: "ActionBox",
+  serviceName: "다람",
   appVersion: "1.0.0",
 
   /** 운영자: 회사명, 또는 개인 운영 시 성명 */

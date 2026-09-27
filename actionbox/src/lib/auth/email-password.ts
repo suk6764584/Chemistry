@@ -23,7 +23,7 @@ export const emailAndPasswordOptions = {
     try {
       await sendMail({
         to: user.email,
-        subject: "[ActionBox] 비밀번호 재설정 안내",
+        subject: "[다람] 비밀번호 재설정 안내",
         text: `아래 링크에서 새 비밀번호를 정해 주세요. 링크는 1시간 동안 유효해요.\n\n${url}\n\n직접 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않아요.`,
         html: `<p>아래 버튼을 눌러 새 비밀번호를 정해 주세요. 링크는 1시간 동안 유효해요.</p><p><a href="${url}">비밀번호 재설정하기</a></p><p>직접 요청하지 않았다면 이 메일을 무시해 주세요. 비밀번호는 바뀌지 않아요.</p>`,
       });
