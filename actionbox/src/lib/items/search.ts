@@ -121,6 +121,7 @@ function haystack(item: Item): string {
     item.source_url,
     item.coupon_brand,
     item.coupon_product,
+    item.coupon_code,
     item.reservation_number,
     item.phone,
     item.amount,

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { Check, ChevronDown, ChevronRight, ExternalLink, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { CategoryButton, CategoryPicker, CategoryTile } from "@/components/category";
 import { Notice } from "@/components/item-card";
@@ -279,6 +279,29 @@ function hostname(url: string): string {
   }
 }
 
+/** Tap to copy — for codes typed in elsewhere (an online shop, a kiosk). */
+function CopyValue({ value, what }: { value: string; what: string }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast(`${what}를 복사했어요`);
+    } catch {
+      toast.error("복사하지 못했어요. 길게 눌러 복사해 주세요.");
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={() => void copy()}
+      aria-label={`${what} ${value} 복사`}
+      className="hit-area inline-flex items-center gap-1.5 font-medium tabular-nums select-all"
+    >
+      {value}
+      <Copy className="size-4 shrink-0 text-subtle" aria-hidden />
+    </button>
+  );
+}
+
 function InfoList({ item, onEdit }: { item: Item; onEdit: () => void }) {
   const rows: { label: string; value: ReactNode; missing?: boolean }[] = [];
   const withDday = (date: string) => (
@@ -298,6 +321,7 @@ function InfoList({ item, onEdit }: { item: Item; onEdit: () => void }) {
   }
   if (item.coupon_brand) rows.push({ label: "브랜드", value: item.coupon_brand });
   if (item.coupon_product) rows.push({ label: "상품", value: item.coupon_product });
+  if (item.coupon_code) rows.push({ label: "쿠폰번호", value: <CopyValue value={item.coupon_code} what="쿠폰번호" /> });
   if (item.location) rows.push({ label: "장소", value: item.location });
   if (item.address) rows.push({ label: "주소", value: item.address });
   if (item.amount) rows.push({ label: "금액", value: formatAmount(item.amount) });
@@ -398,6 +422,7 @@ type Form = {
   reservation_number: string;
   coupon_brand: string;
   coupon_product: string;
+  coupon_code: string;
   source_url: string;
 };
 
@@ -416,6 +441,7 @@ function formFrom(item: Item): Form {
     reservation_number: item.reservation_number ?? "",
     coupon_brand: item.coupon_brand ?? "",
     coupon_product: item.coupon_product ?? "",
+    coupon_code: item.coupon_code ?? "",
     source_url: item.source_url ?? "",
   };
 }
@@ -436,6 +462,7 @@ const DETAIL_KEYS: DetailKey[] = [
   "reservation_number",
   "coupon_brand",
   "coupon_product",
+  "coupon_code",
   "source_url",
 ];
 
@@ -444,7 +471,7 @@ const MAIN_FIELDS: Record<Category, DetailKey[]> = {
   event: ["extracted_date", "extracted_time", "location", "address"],
   place: ["location", "address", "phone"],
   todo: ["extracted_date", "extracted_time"],
-  coupon: ["coupon_brand", "coupon_product", "expiration_date"],
+  coupon: ["coupon_brand", "coupon_product", "coupon_code", "expiration_date"],
   buy: ["amount", "source_url"],
   read: ["source_url"],
   reference: [],
@@ -560,6 +587,8 @@ function ItemEditor({ item, onClose }: { item: Item; onClose: () => void }) {
         return text("coupon_brand", "브랜드");
       case "coupon_product":
         return text("coupon_product", "상품");
+      case "coupon_code":
+        return text("coupon_code", "쿠폰번호", { autoComplete: "off", spellCheck: false });
       case "source_url":
         return text("source_url", "링크", { type: "url", inputMode: "url", placeholder: "https://" });
     }

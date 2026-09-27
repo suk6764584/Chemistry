@@ -38,7 +38,7 @@ const LIST_COLUMNS = `
   extracted_date::text as extracted_date,
   extracted_time,
   expiration_date::text as expiration_date,
-  location, address, amount, phone, reservation_number, coupon_brand, coupon_product,
+  location, address, amount, phone, reservation_number, coupon_brand, coupon_product, coupon_code,
   action_type, recommended_actions, confidence, analysis_status, analysis_error, analysis_note, status,
   reminder_date::text as reminder_date, reminder_enabled, do_today,
   created_at, updated_at,
@@ -106,6 +106,7 @@ function mapItem(row: ItemRow): Item {
     reservation_number: str(row.reservation_number),
     coupon_brand: str(row.coupon_brand),
     coupon_product: str(row.coupon_product),
+    coupon_code: str(row.coupon_code),
     action_type: actionType && isActionCode(actionType) ? actionType : null,
     recommended_actions: parseJson<unknown[]>(row.recommended_actions, []).filter(
       (a): a is ActionCode => typeof a === "string" && isActionCode(a),
@@ -326,6 +327,7 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
         location = coalesce(location, $9), address = coalesce(address, $10), amount = coalesce(amount, $11),
         phone = coalesce(phone, $12), reservation_number = coalesce(reservation_number, $13),
         coupon_brand = coalesce(coupon_brand, $14), coupon_product = coalesce(coupon_product, $15),
+        coupon_code = coalesce(coupon_code, $24),
         source_url = coalesce(source_url, $16),
         action_type = $17, recommended_actions = $18::jsonb, confidence = $19::jsonb,
         analysis_status = 'done', analysis_error = null, analysis_note = $20,
@@ -358,6 +360,7 @@ async function runAnalysis(userId: string, item: Item, today: string): Promise<v
         note ? "inbox" : "active",
         reminder.reminder_date,
         reminder.reminder_enabled,
+        ex.coupon_code,
       ],
     );
   } catch (err) {
@@ -463,6 +466,7 @@ export const updateItem = createServerFn({ method: "POST" })
     const reservation_number = pick("reservation_number", (v) => cleanText(v, 60));
     const coupon_brand = pick("coupon_brand", (v) => cleanText(v, 60));
     const coupon_product = pick("coupon_product", (v) => cleanText(v, 80));
+    const coupon_code = pick("coupon_code", (v) => cleanText(v, 60));
     const source_url = pick("source_url", (v) => {
       if (v == null || v === "") return null;
       const u = asHttpUrl(v);
@@ -501,7 +505,7 @@ export const updateItem = createServerFn({ method: "POST" })
     // the detail screen, two tabs) never undo each other with stale values.
     const next = {
       title, summary, category, extracted_date, extracted_time, expiration_date, location, address,
-      amount, phone, reservation_number, coupon_brand, coupon_product, source_url, original_content,
+      amount, phone, reservation_number, coupon_brand, coupon_product, coupon_code, source_url, original_content,
       status, do_today, reminder_date, reminder_enabled,
     };
     const columns = (Object.keys(next) as (keyof typeof next)[]).filter(
