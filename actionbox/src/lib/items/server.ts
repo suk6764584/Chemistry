@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import {
+  aiConfigured,
   analyzeWithAi,
   asDate,
   asHttpUrl,
@@ -264,7 +265,7 @@ function aiDailyLimit(): number {
 
 /** Counts this attempt and throws AI_LIMIT once today's cap is used up. */
 async function takeAiQuota(userId: string): Promise<void> {
-  if (!process.env.OPENAI_API_KEY?.trim()) return; // Nothing is spent without a key.
+  if (!aiConfigured()) return; // Nothing is spent without a key.
   const sql = await getSql();
   const rows = await sql.query<{ count: number }>(
     `insert into ai_usage (user_id, day, count) values ($1, (now() at time zone 'Asia/Seoul')::date, 1)

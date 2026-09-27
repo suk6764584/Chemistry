@@ -20,7 +20,7 @@
 | **사진 여러 장 한 번에** | 저장 시트 | 최대 10장, 장마다 진행 상태 표시, 실패한 것만 다시 시도 |
 | **직접 입력 간소화** | 항목 → 수정 | 분류에 맞는 칸만 먼저 보이고 나머지는 ‘항목 더 보기’. 빈 날짜 칸에 오늘·내일·이번 주말·다음 주 버튼 |
 | 비밀번호 재설정 | `/forgot-password` | 메일 서비스 미연결 상태 → "지금은 이용 불가, 문의 이메일" 안내 |
-| AI 자동 분석 | `src/lib/items/ai.ts` | **OpenAI**(`OPENAI_API_KEY`). 키가 없으면 AI 없이 동작(원본 저장 + 직접 입력) |
+| AI 자동 분석 | `src/lib/items/ai.ts` | **Google Gemini**(`GEMINI_API_KEY`) 먼저, 실패하거나 무료 한도를 넘으면 **OpenAI**(`OPENAI_API_KEY`). 둘 다 없으면 AI 없이 동작(원본 저장 + 직접 입력) |
 | AI 비용 상한 | `src/lib/items/server.ts` | 1인 하루 50회(`AI_DAILY_LIMIT`) |
 | 앱 아이콘·매니페스트 | `public/manifest.webmanifest`, `public/icons/` | Play 포장(TWA)에 필요 |
 | Grok 플랫폼 연동 제거 | — | Grok 로그인 중계, 자동 로그인, "Created with Grok" 표시, 미리보기 연동, xAI 키 |
@@ -34,12 +34,16 @@
 |---|---|---|---|
 | 데이터베이스 | **Supabase Free, 서울 리전** | Supabase Pro | 서울(ap-northeast-2) 리전 있음. 무료는 DB 500MB, 7일간 활동이 없으면 일시 정지 |
 | 서버(호스팅) | Vercel Hobby (테스트 기간) | Vercel Pro 또는 다른 호스팅 | ⚠️ Vercel Hobby는 **비상업·개인 용도만** 허용. 회사(미소테크)로 정식 출시하면 유료 전환이나 다른 호스팅이 필요할 수 있음 |
-| AI 분석 | **키 없이 출시**(AI 꺼짐, 무료) | OpenAI 키 연결 | OpenAI API는 무료 제공량이 없고 최소 5달러 선불. API 데이터는 기본적으로 학습에 쓰지 않고, 남용 감시용으로 최대 30일 보관 |
+| AI 분석 | **Google AI Studio 무료 키**(테스트 기간) → 막히면 OpenAI | 학습에 쓰이지 않는 유료 등급(OpenAI 또는 Gemini 유료) | Google 무료 등급: 입력을 서비스 개선에 쓰고 사람이 검토할 수 있으며, **개인정보를 넣지 말라고 안내**. OpenAI: 기본은 선불(최소 5달러)이고 학습에 쓰지 않음. 데이터 공유를 켜면 무료 토큰을 주는 프로그램이 있으나 그 경우 학습에 쓰임 |
 | 비밀번호 재설정 메일 | 사용 안 함 | Resend 등 연결 | — |
 | 도메인 | `프로젝트이름.vercel.app` | 자체 도메인 | 앱 주소가 바뀌면 Play 포장을 다시 해야 하므로 가능하면 처음부터 정해 두기 |
 | Google Play 개발자 계정 | 등록비 25달러(1회) | — | 무료 대안 없음 |
 
-**무료 AI를 권하지 않는 이유:** Gemini API 무료 등급은 입력 내용이 Google 서비스 개선에 쓰일 수 있고 사람이 검토할 수 있습니다. Google도 무료 등급에 개인정보를 넣지 말라고 안내합니다. 이 앱은 사용자 스크린샷(개인정보 포함)을 보내므로 맞지 않습니다.
+### ⚠️ 출시 전 반드시 결정: 무료 AI
+지금은 운영자 결정에 따라 **Google 무료 키를 먼저** 씁니다(개발·테스트 기간). 처리방침 6·7항과 가입 동의에 “무료 등급 이용 중에는 Google이 서비스 개선(AI 학습 포함)에 쓸 수 있음”을 적어 두었습니다. 그러나 실제 사용자를 받기 전에는 아래 중 하나가 필요합니다.
+- **유료(학습 안 함)로 전환(권장):** Vercel에서 `GEMINI_API_KEY`를 지우고 OpenAI만 쓰거나(데이터 공유 끔), Google Cloud 결제를 연결해 Gemini 유료 등급으로 바꿉니다. 그 뒤 처리방침 6·7항에서 학습 문구를 빼고 `privacyVersion`을 올립니다.
+- **무료를 계속 쓰려면:** Google 약관이 무료 등급에 개인정보를 넣지 말라고 하고, 개인정보보호법상 제3자의 학습 목적 이용은 별도 동의가 필요할 수 있습니다. 이 경우 법률 검토를 받고 동의 구조를 바꿔야 합니다.
+- OpenAI의 “데이터 공유 → 무료 토큰”을 켜는 경우도 같습니다(학습에 쓰임). 켜기 전에 알려 주세요. 처리방침 OpenAI 항목을 고쳐야 합니다.
 
 ---
 
@@ -50,8 +54,10 @@
 | `DATABASE_URL` | ✅ | Supabase 대시보드 → Connect → **pooler** 연결 문자열 (서버리스 환경용) |
 | `BETTER_AUTH_SECRET` | ✅ | 32바이트 이상 무작위 문자열 (예: `openssl rand -hex 32` 결과) |
 | `BETTER_AUTH_URL` | ✅ | 앱 공개 주소 (예: `https://actionbox.vercel.app`) |
-| `OPENAI_API_KEY` | 선택 | 넣으면 AI 분석이 켜짐 |
-| `AI_MODEL` | 선택 | 기본 `gpt-4.1-mini` |
+| `GEMINI_API_KEY` | 선택 | Google AI Studio 키. 넣으면 AI 분석을 Google이 먼저 맡음 ([키 발급](https://aistudio.google.com/apikey)) |
+| `GEMINI_MODEL` | 선택 | 기본 `gemini-3.5-flash-lite` |
+| `OPENAI_API_KEY` | 선택 | Google이 실패하거나 한도를 넘으면 대신 분석 |
+| `AI_MODEL` | 선택 | OpenAI 모델, 기본 `gpt-4.1-mini` |
 | `AI_DAILY_LIMIT` | 선택 | 기본 50 |
 | `GOOGLE_CLIENT_ID` | 선택 | 넣으면 Google 로그인 버튼이 켜짐 (아래 3-1) |
 | `GOOGLE_CLIENT_SECRET` | 선택 | 위와 한 쌍 |

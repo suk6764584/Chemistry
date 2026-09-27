@@ -50,12 +50,12 @@ export const SITE: SiteConfig = {
   /** DB 백업 보관 기간(상한). 실제 백업 설정이 이 기간을 넘지 않게 해 주세요. */
   backupRetention: "최대 3개월",
 
-  /** 자동 분석에 쓰는 생성형 AI (`src/lib/items/ai.ts`). 바꾸면 여기도 바꿔 주세요. */
-  ai: { name: "OpenAI", country: "미국" },
+  /** 자동 분석에 쓰는 생성형 AI (`src/lib/items/ai.ts`의 순서대로). 바꾸면 여기와 처리방침 6·7항도 바꿔 주세요. */
+  ai: { name: "Google·OpenAI", country: "미국 등" },
 
   /** 시행일 = 버전. 문서를 바꾸면 날짜를 올려 주세요. */
   termsVersion: "2026-09-26",
-  privacyVersion: "2026-09-27",
+  privacyVersion: "2026-09-28",
 };
 
 export const MISSING = "출시 전 입력 필요";
