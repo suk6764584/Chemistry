@@ -11,7 +11,7 @@ import { SITE } from "@/lib/site";
 import { useSession } from "@/lib/use-session";
 
 export const Route = createFileRoute("/agree")({
-  head: () => ({ meta: [{ title: "약관 동의 · ActionBox" }] }),
+  head: () => ({ meta: [{ title: "약관 동의 · 다람" }] }),
   component: Agree,
 });
 
@@ -55,7 +55,7 @@ function Agree() {
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface px-5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-10">
       <div className="flex h-13 items-center gap-2">
         <Logo className="size-6" />
-        <span className="text-body font-bold tracking-tight">ActionBox</span>
+        <span className="text-body font-bold tracking-tight">다람</span>
       </div>
 
       <div className="mt-8">

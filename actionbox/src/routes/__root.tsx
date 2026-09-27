@@ -5,7 +5,7 @@ import { AppQueryProvider } from "@/lib/query";
 import { Toaster } from "sonner";
 import appCss from "../styles.css?url";
 
-const APP_NAME = "ActionBox";
+const APP_NAME = "다람";
 
 export const Route = createRootRoute({
   head: () => ({

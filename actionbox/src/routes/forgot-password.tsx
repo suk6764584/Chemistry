@@ -9,7 +9,7 @@ import { useAuthFeatures } from "@/lib/query";
 import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/forgot-password")({
-  head: () => ({ meta: [{ title: "비밀번호 찾기 · ActionBox" }] }),
+  head: () => ({ meta: [{ title: "비밀번호 찾기 · 다람" }] }),
   component: ForgotPassword,
 });
 

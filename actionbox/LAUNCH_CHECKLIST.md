@@ -1,4 +1,6 @@
-# ActionBox 출시 체크리스트 (목표: Google Play)
+# 다람 출시 체크리스트 (목표: Google Play)
+
+> 앱 이름을 **ActionBox → 다람**으로 바꿨습니다(같은 이름의 앱 ‘actionBox - 습관 루틴 할일 체크리스트’가 이미 Play에 있음). 아이콘은 도토리를 든 다람쥐입니다(`public/icons/`, 앱 로고 `src/components/app-shell.tsx`). 저장소·Vercel 주소(`actionbox.vercel.app`)는 아직 그대로입니다.
 
 원칙: **지금은 무료로 시작하고, 앱이 잘 되면 유료로 바꾼다.**
 표기: ✅ 구현·검증함 / ⬜ 운영자가 할 일 / ⚠️ 확인 필요(단정하지 않음)
@@ -16,7 +18,7 @@
 | **계정 삭제 웹페이지** | `/delete-account` | 앱 없이도 삭제 가능(로그인 후 삭제 또는 이메일 요청). Google Play 요구사항 대응 |
 | **Google 로그인** | `/login` | `GOOGLE_CLIENT_ID`·`GOOGLE_CLIENT_SECRET`을 넣으면 버튼이 나타남. 처음 로그인하면 `/agree`에서 약관 동의 |
 | **문의 페이지** | `/contact` | 로그인 없이 열림. 메일 쓰기(제목·앱 버전 자동 입력), 주소 복사. 앱 하단·설정의 ‘문의’가 이 페이지로 연결 |
-| **공유하기로 저장** | `public/sw.js`, `manifest.webmanifest`의 `share_target` | 갤러리·카카오톡·브라우저에서 ‘공유 → ActionBox’ → 바로 저장·분석. 사진은 한 번에 10장까지. 로그인 전이면 로그인 후 저장 |
+| **공유하기로 저장** | `public/sw.js`, `manifest.webmanifest`의 `share_target` | 갤러리·카카오톡·브라우저에서 ‘공유 → 다람’ → 바로 저장·분석. 사진은 한 번에 10장까지. 로그인 전이면 로그인 후 저장 |
 | **사진 여러 장 한 번에** | 저장 시트 | 최대 10장, 장마다 진행 상태 표시, 실패한 것만 다시 시도 |
 | **직접 입력 간소화** | 항목 → 수정 | 분류에 맞는 칸만 먼저 보이고 나머지는 ‘항목 더 보기’. 빈 날짜 칸에 오늘·내일·이번 주말·다음 주 버튼 |
 | 비밀번호 재설정 | `/forgot-password` | 메일 서비스 미연결 상태 → "지금은 이용 불가, 문의 이메일" 안내 |
@@ -67,9 +69,9 @@
 
 ### 3-1. Google 로그인 켜기 (무료)
 
-1. ⬜ [Google Cloud 콘솔](https://console.cloud.google.com/)에서 프로젝트 만들기 (이름 예: ActionBox)
+1. ⬜ [Google Cloud 콘솔](https://console.cloud.google.com/)에서 프로젝트 만들기 (이름 예: Daram)
 2. ⬜ [Google 인증 플랫폼](https://console.cloud.google.com/auth/overview) → 시작하기
-   - 앱 이름 `ActionBox`, 사용자 지원 이메일, 대상 **외부**, 개발자 연락처 이메일 입력
+   - 앱 이름 `다람`(이미 `ActionBox`로 만들었다면 [브랜딩](https://console.cloud.google.com/auth/branding)에서 바꾸기), 사용자 지원 이메일, 대상 **외부**, 개발자 연락처 이메일 입력
 3. ⬜ [클라이언트](https://console.cloud.google.com/auth/clients) → 클라이언트 만들기 → 유형 **웹 애플리케이션**
    - 승인된 JavaScript 원본: `https://actionbox.vercel.app`
    - 승인된 리디렉션 URI: `https://actionbox.vercel.app/api/auth/callback/google`
@@ -91,7 +93,8 @@
    - **개인 계정**(2023-11-13 이후 생성): 정식 출시 전에 **테스터 12명이 14일 이상** 비공개 테스트에 참여해야 함
    - **조직 계정**(D-U-N-S 번호 필요)은 이 요건이 면제. 미소테크가 사업자라면 검토할 만함
 3. ⬜ [PWABuilder](https://www.pwabuilder.com)에 앱 주소를 넣고 Android 패키지(.aab) 생성
-   - ‘공유 → ActionBox’는 설치한 앱에서만 공유 목록에 나옵니다. ⚠️ 확인 필요: 패키지를 만들 때 PWABuilder가 매니페스트의 `share_target`을 가져오는지(공유 대상 설정) 확인하세요.
+   - 앱 이름 `다람`, 패키지 이름 예: `kr.misotech.daram` (한 번 올리면 바꿀 수 없음)
+   - ‘공유 → 다람’은 설치한 앱에서만 공유 목록에 나옵니다. ⚠️ 확인 필요: 패키지를 만들 때 PWABuilder가 매니페스트의 `share_target`을 가져오는지(공유 대상 설정) 확인하세요.
    - Play 출시 전에는 안드로이드 크롬에서 사이트를 연 뒤 메뉴 → **앱 설치**로 설치하면 공유 기능을 미리 시험할 수 있습니다.
 4. ⬜ PWABuilder가 주는 `assetlinks.json`을 받으면 저에게 주세요 → `public/.well-known/assetlinks.json`으로 넣겠습니다
    - 이 파일이 없거나 틀리면 앱 위에 브라우저 주소창이 보입니다

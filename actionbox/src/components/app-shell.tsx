@@ -7,25 +7,24 @@ import { useAccountStatus, useItems } from "@/lib/query";
 import { useSession } from "@/lib/use-session";
 import { cn } from "@/lib/utils";
 
+/** 다람 mark: a squirrel holding an acorn (same drawing as the app icons in public/icons). */
 export function Logo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden>
-      <rect width="24" height="24" rx="7" fill="var(--color-primary)" />
+    <svg viewBox="0 0 100 100" className={className} aria-hidden>
+      <rect width="100" height="100" rx="24" fill="#f07a2c" />
       <path
-        d="M6 12.5v3.2a1.8 1.8 0 0 0 1.8 1.8h8.4a1.8 1.8 0 0 0 1.8-1.8v-3.2"
-        stroke="var(--color-on-primary)"
-        strokeWidth="1.9"
-        fill="none"
-        strokeLinecap="round"
+        d="M50 86 C74 88 90 72 88 50 C86 32 74 20 62 22 C52 24 50 36 58 41 C66 46 70 54 66 64 C63 71 57 76 50 78 Z"
+        fill="#ffe2c2"
       />
-      <path
-        d="m9 10.2 2.4 2.4L16 8"
-        stroke="var(--color-on-primary)"
-        strokeWidth="1.9"
-        fill="none"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M30 86 C24 76 25 63 33 56 C40 50 52 51 57 60 C62 70 59 82 52 86 Z" fill="#ffffff" />
+      <circle cx="39" cy="43" r="12" fill="#ffffff" />
+      <path d="M29.5 40 C24 42 21 45 21.5 48 C22 51 27 52 32 50 Z" fill="#ffffff" />
+      <path d="M40 33 L43 20 L49 33 Z" fill="#ffffff" />
+      <circle cx="35.5" cy="41" r="2.3" fill="#5a2e12" />
+      <circle cx="22.4" cy="47.2" r="1.4" fill="#5a2e12" />
+      <path d="M27 63 C27 58.5 30 56 34 56 C38 56 41 58.5 41 63 Z" fill="#8a4a1c" />
+      <path d="M28.5 63 H39.5 C39.5 69.5 37 73 34 74.5 C31 73 28.5 69.5 28.5 63 Z" fill="#c8793a" />
+      <rect x="33" y="52" width="2" height="5" rx="1" fill="#8a4a1c" />
     </svg>
   );
 }
@@ -71,7 +70,7 @@ export function AppShell({
           ) : (
             <Link to="/" className="flex items-center gap-2">
               <Logo className="size-6" />
-              <span className="text-body font-bold tracking-tight">ActionBox</span>
+              <span className="text-body font-bold tracking-tight">다람</span>
             </Link>
           )}
           <div className="ml-auto flex min-h-10 items-center">

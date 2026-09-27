@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "ActionBox",
-  "short_name": "ActionBox",
+  "name": "다람",
+  "short_name": "다람",
   "description": "저장만 하고 잊은 정보를, 필요한 순간 실제 행동으로 연결합니다.",
   "lang": "ko",
   "start_url": "/",

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/reset-password")({
-  head: () => ({ meta: [{ title: "새 비밀번호 · ActionBox" }] }),
+  head: () => ({ meta: [{ title: "새 비밀번호 · 다람" }] }),
   // The emailed link lands here via Better Auth with `?token=` (or `?error=INVALID_TOKEN`).
   validateSearch: (s: Record<string, unknown>): { token?: string; error?: string } => ({
     token: typeof s.token === "string" ? s.token : undefined,

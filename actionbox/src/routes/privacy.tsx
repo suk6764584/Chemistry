@@ -3,7 +3,7 @@ import { Blank, Bullets, Clause, LegalDoc, Records } from "@/components/legal";
 import { SITE } from "@/lib/site";
 
 export const Route = createFileRoute("/privacy")({
-  head: () => ({ meta: [{ title: "개인정보 처리방침 · ActionBox" }] }),
+  head: () => ({ meta: [{ title: "개인정보 처리방침 · 다람" }] }),
   component: PrivacyPage,
 });
 

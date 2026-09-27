@@ -297,7 +297,7 @@ export function useItemActions(item: Item) {
             onClick={() => {
               if (!calendarEvent) return;
               // ASCII name: some browsers drop a Korean file name and save it as "download".
-              downloadIcs(`actionbox-${calendarEvent.date}`, buildIcs(calendarEvent));
+              downloadIcs(`daram-${calendarEvent.date}`, buildIcs(calendarEvent));
               setCalendarOpen(false);
             }}
           />

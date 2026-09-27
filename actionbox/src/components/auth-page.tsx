@@ -8,7 +8,7 @@ export function AuthPage({ title, children }: { title: string; children: ReactNo
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface px-5 pt-[max(0.5rem,env(safe-area-inset-top))] pb-10">
       <Link to="/" className="flex h-13 items-center gap-2 self-start">
         <Logo className="size-6" />
-        <span className="text-body font-bold tracking-tight">ActionBox</span>
+        <span className="text-body font-bold tracking-tight">다람</span>
       </Link>
       <h1 className="mt-10 text-display font-bold">{title}</h1>
       {children}
